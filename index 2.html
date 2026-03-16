@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="LifeOS">
+<meta name="theme-color" content="#FAFAF9">
+<title>LifeOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,-apple-system,sans-serif;background:#FAFAF9;color:#1C1917;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{display:none}
+input:focus,textarea:focus{border-color:#6366F1!important;outline:none}
+button{font-family:inherit}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pop{0%{transform:scale(.8);opacity:0}50%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+#error-box{display:none;position:fixed;top:20px;left:20px;right:20px;background:#FEE2E2;color:#991B1B;padding:16px;border-radius:12px;font-size:14px;z-index:9999;word-break:break-word}
+</style>
+</head>
+<body>
+<div id="error-box"></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">🚀</div><p style="font-size:16px;color:#78716C">Loading LifeOS…</p></div></div></div>
+
+<script>
+// Global error handler - shows errors visually
+window.onerror = function(msg, url, line, col, err) {
+  var el = document.getElementById('error-box');
+  el.style.display = 'block';
+  el.textContent = 'Error: ' + msg + ' (line ' + line + ')';
+};
+</script>
+
+<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js" crossorigin></script>
+
+<script type="text/babel" data-presets="react">
+/* LifeOS - Standalone App */
+var h = React.createElement;
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useCallback = React.useCallback;
+var useReducer = React.useReducer;
+var createContext = React.createContext;
+var useContext = React.useContext;
+var useRef = React.useRef;
+
+var STORE = "lifeos-v9";
+var ff = "'DM Sans',system-ui,sans-serif";
+var fd = "'Outfit',system-ui,sans-serif";
+var T = {bg:"#FAFAF9",card:"#FFF",ca:"#F5F5F4",brd:"#E7E5E4",tx:"#1C1917",tx2:"#78716C",tx3:"#A8A29E",pri:"#6366F1",priL:"#EEF2FF",priD:"#4338CA",acc:"#F59E0B",ok:"#22C55E",okL:"#DCFCE7",err:"#EF4444",errL:"#FEE2E2",xpL:"#FEF9C3"};
+
+function getDay(){return new Date().toISOString().split("T")[0]}
+function mkId(){return "i"+Math.random().toString(36).slice(2,9)+Date.now().toString(36)}
+function cl(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
+function xpFor(lv){return Math.floor(100*Math.pow(1.5,lv-1))}
+function lvI(xp){var l=1,n=100,a=0;while(a+n<=xp){a+=n;l++;n=xpFor(l);}return{level:l,cur:xp-a,next:n}}
+function safeGet(obj,key){return obj && obj[key] != null ? obj[key] : undefined}
+
+var TT=[{id:"count",label:"Count",units:["times","reps","sets","items"]},{id:"duration",label:"Duration",units:["minutes","hours"]},{id:"quantity",label:"Quantity",units:["liters","ml","glasses"]},{id:"distance",label:"Distance",units:["km","miles","steps"]},{id:"pages",label:"Pages",units:["pages","chapters"]},{id:"binary",label:"Yes / No",units:["complete"]},{id:"custom",label:"Custom",units:[]}];
+var REC=[{id:"daily",label:"Daily"},{id:"weekdays",label:"Weekdays"},{id:"weekends",label:"Weekends"}];
+var DF=[{id:"easy",label:"Easy",m:0.75,c:"#4ade80"},{id:"medium",label:"Medium",m:1,c:"#fbbf24"},{id:"hard",label:"Hard",m:1.5,c:"#f97316"},{id:"epic",label:"Epic",m:2,c:"#ef4444"}];
+var ICS=["⚡","🏋️","📖","🧠","🧘","📝","💧","🏃","🎯","💪","🎹","🌱","✍️","🔬","💼","🎨","🗣️","❤️","🌍","📱","🍎","😴","🧹","📊","🎓","🏆","💡","🔥","⭐","💎","🎵","🛠️","🚀"];
+var CLS=["#6366f1","#8b5cf6","#a855f7","#ec4899","#ef4444","#f97316","#eab308","#22c55e","#14b8a6","#06b6d4","#3b82f6","#64748b"];
+
+/* SEED */
+var SC=[{id:"fitness",name:"Fitness",icon:"💪",color:"#ef4444"},{id:"mind",name:"Mind",icon:"🧠",color:"#8b5cf6"},{id:"learning",name:"Learning",icon:"📖",color:"#3b82f6"},{id:"health",name:"Health",icon:"❤️",color:"#22c55e"},{id:"creativity",name:"Creativity",icon:"🎨",color:"#f97316"},{id:"productivity",name:"Productivity",icon:"⚡",color:"#eab308"}];
+var SSt=[{id:"strength",name:"Strength",icon:"💪",value:0,color:"#ef4444"},{id:"discipline",name:"Discipline",icon:"⚡",value:0,color:"#f97316"},{id:"focus",name:"Focus",icon:"🎯",value:0,color:"#8b5cf6"},{id:"knowledge",name:"Knowledge",icon:"📖",value:0,color:"#3b82f6"},{id:"endurance",name:"Endurance",icon:"🏃",value:0,color:"#22c55e"},{id:"consistency",name:"Consistency",icon:"🔥",value:0,color:"#eab308"},{id:"confidence",name:"Confidence",icon:"⭐",value:0,color:"#ec4899"}];
+var SDT=[
+  {id:"t1",title:"Workout",desc:"Complete your training",cat:"fitness",icon:"🏋️",tt:"count",tv:1,unit:"times",diff:"medium",xp:50,ls:[{sid:"strength",a:3},{sid:"discipline",a:2}],rec:"daily",color:"#ef4444"},
+  {id:"t2",title:"Read",desc:"Expand your mind",cat:"learning",icon:"📖",tt:"pages",tv:20,unit:"pages",diff:"easy",xp:30,ls:[{sid:"knowledge",a:3},{sid:"focus",a:1}],rec:"daily",color:"#3b82f6"},
+  {id:"t3",title:"Meditate",desc:"Calm and focus",cat:"mind",icon:"🧘",tt:"duration",tv:10,unit:"minutes",diff:"easy",xp:25,ls:[{sid:"focus",a:3},{sid:"consistency",a:1}],rec:"daily",color:"#8b5cf6"},
+  {id:"t4",title:"Drink Water",desc:"Stay hydrated",cat:"health",icon:"💧",tt:"quantity",tv:2.5,unit:"liters",diff:"easy",xp:15,ls:[{sid:"discipline",a:1},{sid:"endurance",a:1}],rec:"daily",color:"#06b6d4"},
+  {id:"t5",title:"Journal",desc:"Reflect on your day",cat:"mind",icon:"📝",tt:"binary",tv:1,unit:"complete",diff:"easy",xp:20,ls:[{sid:"focus",a:1},{sid:"confidence",a:2}],rec:"daily",color:"#ec4899"},
+  {id:"t6",title:"Walk 8000 Steps",desc:"Move your body",cat:"fitness",icon:"🏃",tt:"distance",tv:8000,unit:"steps",diff:"medium",xp:35,ls:[{sid:"endurance",a:3},{sid:"discipline",a:1}],rec:"daily",color:"#22c55e"}
+];
+var SAch=[
+  {id:"a1",title:"First Steps",desc:"Complete first task",icon:"🌱",ct:"totalDone",cv:1,xp:25},
+  {id:"a2",title:"Streak Master",desc:"7-day streak",icon:"🔥",ct:"maxStreak",cv:7,xp:100},
+  {id:"a3",title:"Century",desc:"Earn 1000 XP",icon:"💎",ct:"totalXP",cv:1000,xp:150},
+  {id:"a4",title:"Perfect Day",desc:"All tasks done",icon:"⭐",ct:"perfDays",cv:1,xp:75},
+  {id:"a5",title:"Creator",desc:"Create 3 custom tasks",icon:"🛠️",ct:"customN",cv:3,xp:50},
+  {id:"a6",title:"Two Weeks",desc:"14-day streak",icon:"💪",ct:"maxStreak",cv:14,xp:200},
+  {id:"a7",title:"Scholar",desc:"Read 5 learnings",icon:"🎓",ct:"learnN",cv:5,xp:60},
+  {id:"a8",title:"Dedicated",desc:"50 tasks done",icon:"🏆",ct:"totalDone",cv:50,xp:250}
+];
+var SLrn=[
+  {id:"l1",title:"Atomic Habits",author:"James Clear",sum:"Tiny changes create remarkable results. Focus on systems, not goals.",kp:["1% better daily = 37x yearly","Identity beats outcomes","Environment shapes behavior","Habit stacking works"],acts:["Reduce one habit to 2 min","Design your environment","Use a tracker"],cat:"Habits",read:0},
+  {id:"l2",title:"Deep Work",author:"Cal Newport",sum:"Focus without distraction is rare and valuable.",kp:["Shallow work fills time","Ritualize deep sessions","Be intentional with tech","Meditation trains focus"],acts:["Block 90-min sessions","Create shutdown ritual","Try 30-day social detox"],cat:"Productivity",read:0},
+  {id:"l3",title:"The Compound Effect",author:"Darren Hardy",sum:"Small consistent actions x time = massive results.",kp:["Consistency beats intensity","Track for awareness","Momentum from small wins","Choices create character"],acts:["Track one habit 30 days","Drop one bad habit","Add morning micro-habit"],cat:"Mindset",read:0},
+  {id:"l4",title:"Mindset",author:"Carol Dweck",sum:"Growth mindset leads to higher achievement.",kp:["Fixed: avoids challenges","Growth: embraces failure","Praise effort not talent","Yet transforms limits"],acts:["Say I cant yet","Face avoided challenge","Reframe a failure"],cat:"Mindset",read:0},
+  {id:"l5",title:"Essentialism",author:"Greg McKeown",sum:"Do less but better.",kp:["Not clear yes = clear no","Trade-offs are strategic","Guard your time","Routine frees energy"],acts:["Say no once this week","Top 3 priorities","Not-to-do list"],cat:"Productivity",read:0}
+];
+
+function mkS(defs){
+  var d=getDay();
+  return {ob:false,date:d,xp:0,xpD:0,perfDays:0,totalDone:0,customN:0,learnN:0,maxStreak:0,wH:[],xH:[],
+    tasks:(defs||SDT).map(function(t){return{id:t.id,title:t.title,desc:t.desc,cat:t.cat,icon:t.icon,tt:t.tt,tv:t.tv,unit:t.unit,diff:t.diff,xp:t.xp,ls:t.ls,rec:t.rec,color:t.color,custom:false,prog:0,done:false,streak:0,totalDone:0,lastDone:null,arch:false}}),
+    stats:SSt.map(function(s){return{id:s.id,name:s.name,icon:s.icon,value:s.value,color:s.color}}),
+    cats:SC.map(function(c){return{id:c.id,name:c.name,icon:c.icon,color:c.color}}),
+    achs:SAch.map(function(a){return{id:a.id,title:a.title,desc:a.desc,icon:a.icon,ct:a.ct,cv:a.cv,xp:a.xp,unlocked:false,prog:0}}),
+    learns:SLrn.map(function(l){return{id:l.id,title:l.title,author:l.author,sum:l.sum,kp:l.kp,acts:l.acts,cat:l.cat,read:l.read}})
+  };
+}
+
+function roll(s,now){
+  var act=s.tasks.filter(function(t){return !t.arch});
+  var ad=act.length>0&&act.every(function(t){return t.done});
+  var r=act.length>0?act.filter(function(t){return t.done}).length/act.length:0;
+  var tasks=s.tasks.map(function(t){return t.arch?t:Object.assign({},t,{prog:0,done:false,streak:t.done?t.streak+1:0})});
+  var ms=s.maxStreak;
+  tasks.forEach(function(t){if(t.streak>ms)ms=t.streak});
+  return Object.assign({},s,{date:now,xpD:0,perfDays:ad?s.perfDays+1:s.perfDays,wH:s.wH.concat([{d:s.date,rate:r,xp:s.xpD}]).slice(-30),tasks:tasks,maxStreak:ms});
+}
+
+function red(state,action){
+  var now=getDay();
+  var s=state;
+  if(s.date&&s.date!==now&&action.type!=="OB"&&action.type!=="RST"&&action.type!=="LD"){s=roll(s,now)}
+  switch(action.type){
+    case "LD":{var b=mkS(null);var m=Object.assign({},b,action.data);if(m.date&&m.date!==now)return roll(m,now);return m}
+    case "OB":{var f=mkS(action.tasks);return Object.assign({},f,{ob:true,date:now})}
+    case "PROG":{
+      var id=action.id,amt=action.amt;
+      var xG=0,dd=false;
+      var ns=s.stats.map(function(x){return Object.assign({},x)});
+      var tasks=s.tasks.map(function(t){
+        if(t.id!==id||t.done)return t;
+        var np=cl(t.prog+amt,0,t.tv);
+        var fin=np>=t.tv;
+        if(fin){
+          dd=true;
+          var d=DF.find(function(x){return x.id===t.diff})||DF[1];
+          xG=Math.floor(t.xp*d.m);
+          (t.ls||[]).forEach(function(l){ns=ns.map(function(st){return st.id===l.sid?Object.assign({},st,{value:st.value+l.a}):st})});
+        }
+        return Object.assign({},t,{prog:np,done:fin,lastDone:fin?now:t.lastDone,totalDone:fin?t.totalDone+1:t.totalDone});
+      });
+      return Object.assign({},s,{tasks:tasks,stats:ns,xp:s.xp+xG,xpD:s.xpD+xG,totalDone:s.totalDone+(dd?1:0),xH:xG>0?s.xH.concat([{d:now,xp:xG}]).slice(-100):s.xH});
+    }
+    case "TOG":{
+      var t=s.tasks.find(function(x){return x.id===action.id});
+      if(!t)return s;
+      if(!t.done)return red(s,{type:"PROG",id:action.id,amt:1});
+      return Object.assign({},s,{tasks:s.tasks.map(function(x){return x.id===action.id?Object.assign({},x,{done:false,prog:0,totalDone:Math.max(0,x.totalDone-1)}):x})});
+    }
+    case "STV":return Object.assign({},s,{tasks:s.tasks.map(function(t){return t.id===action.id?Object.assign({},t,{tv:action.v,done:t.prog>=action.v}):t})});
+    case "ADD":{var nt=Object.assign({},action.task,{id:mkId(),custom:true,prog:0,done:false,streak:0,totalDone:0,lastDone:null,arch:false});return Object.assign({},s,{tasks:s.tasks.concat([nt]),customN:s.customN+1})}
+    case "EDT":return Object.assign({},s,{tasks:s.tasks.map(function(t){return t.id===action.task.id?Object.assign({},t,action.task):t})});
+    case "ARC":return Object.assign({},s,{tasks:s.tasks.map(function(t){return t.id===action.id?Object.assign({},t,{arch:true}):t})});
+    case "ACAT":return Object.assign({},s,{cats:s.cats.concat([Object.assign({id:mkId()},action.c)])});
+    case "RDL":{var w=false;var lr=s.learns.find(function(l){return l.id===action.id});if(lr&&lr.read<100)w=true;return Object.assign({},s,{learns:s.learns.map(function(l){return l.id===action.id?Object.assign({},l,{read:100}):l}),learnN:w?s.learnN+1:s.learnN})}
+    case "RST":return Object.assign({},mkS(null),{ob:false});
+    default:return s;
+  }
+}
+
+function eA(s){
+  return s.achs.map(function(a){
+    if(a.unlocked)return a;
+    var p=0;
+    if(a.ct==="totalDone")p=s.totalDone;
+    else if(a.ct==="maxStreak")p=s.maxStreak;
+    else if(a.ct==="totalXP")p=s.xp;
+    else if(a.ct==="perfDays")p=s.perfDays;
+    else if(a.ct==="customN")p=s.customN;
+    else if(a.ct==="learnN")p=s.learnN;
+    return Object.assign({},a,{prog:p,unlocked:p>=a.cv});
+  });
+}
+
+var Ctx=createContext(null);
+function useC(){return useContext(Ctx)}
+
+/* UI PRIMITIVES */
+function PB(props){
+  var p=props.mx>0?cl((props.v/props.mx)*100,0,100):0;
+  var h=props.h||6;
+  var color=props.color||T.pri;
+  return <div style={{height:h,background:T.ca,borderRadius:h/2,overflow:"hidden",width:"100%"}}><div style={{height:"100%",borderRadius:h/2,width:p+"%",background:color,transition:"width 0.4s"}}/></div>;
+}
+function CP(props){
+  var p=props.mx>0?cl(props.v/props.mx,0,1):0;
+  var sz=props.sz||56,sw=props.sw||4,color=props.color||T.pri;
+  var r=(sz-sw)/2,c=2*Math.PI*r;
+  return <div style={{position:"relative",width:sz,height:sz,flexShrink:0}}>
+    <svg width={sz} height={sz} style={{transform:"rotate(-90deg)"}}>
+      <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke={T.ca} strokeWidth={sw}/>
+      <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke={color} strokeWidth={sw} strokeDasharray={c} strokeDashoffset={c*(1-p)} strokeLinecap="round" style={{transition:"stroke-dashoffset 0.5s"}}/>
+    </svg>
+    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{props.children}</div>
+  </div>;
+}
+function Stp(props){
+  var val=props.value,step=props.step||1,min=props.min||0,max=props.max||99999,unit=props.unit||"";
+  return <div style={{display:"flex",alignItems:"center",gap:14}}>
+    <button onClick={function(){props.onChange(Math.max(min,+(val-step).toFixed(2)))}} style={{width:40,height:40,borderRadius:12,border:"1px solid "+T.brd,background:T.card,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+    <span style={{fontSize:22,fontWeight:700,fontFamily:fd,minWidth:48,textAlign:"center"}}>{val}<span style={{fontSize:12,fontWeight:400,color:T.tx2,marginLeft:3}}>{unit}</span></span>
+    <button onClick={function(){props.onChange(Math.min(max,+(val+step).toFixed(2)))}} style={{width:40,height:40,borderRadius:12,border:"1px solid "+T.brd,background:T.card,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+  </div>;
+}
+function Btn(props){
+  return <button onClick={props.onClick} disabled={props.disabled} style={Object.assign({},{fontFamily:ff,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,border:"none",cursor:props.disabled?"default":"pointer",transition:"all 0.15s",opacity:props.disabled?0.5:1},props.s||{})}>{props.children}</button>;
+}
+function Ch(props){
+  return <Btn onClick={props.onClick} s={Object.assign({},{padding:"8px 14px",borderRadius:20,fontSize:13,fontWeight:500,border:"1.5px solid "+(props.on?T.pri:T.brd),background:props.on?T.priL:T.card,color:props.on?T.priD:T.tx,whiteSpace:"nowrap"},props.s||{})}>{props.children}</Btn>;
+}
+function Bd(props){
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:8,fontSize:12,fontWeight:600,background:props.bg,color:props.fg}}>{props.children}</span>;
+}
+function Cd(props){
+  return <div onClick={props.onClick} style={Object.assign({},{background:T.card,borderRadius:16,padding:16,border:"1px solid "+T.brd,marginBottom:12,cursor:props.onClick?"pointer":"default"},props.s||{})}>{props.children}</div>;
+}
+function Toaster(props){
+  if(!props.msg)return null;
+  return <div style={{position:"fixed",top:56,left:"50%",transform:"translateX(-50%)",zIndex:999,background:T.tx,color:"#fff",padding:"12px 24px",borderRadius:16,fontSize:14,fontWeight:600,fontFamily:ff,boxShadow:"0 8px 32px rgba(0,0,0,.2)",animation:"pop .3s",whiteSpace:"nowrap"}}>{props.msg}</div>;
+}
+function Sheet(props){
+  if(!props.open)return null;
+  return <div style={{position:"fixed",inset:0,zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={props.onClose}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.3)"}}/>
+    <div style={{position:"relative",background:T.bg,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",overflow:"auto",padding:"20px 20px 40px",animation:"slideUp .3s"}} onClick={function(e){e.stopPropagation()}}>
+      <div style={{width:36,height:4,borderRadius:2,background:T.brd,margin:"0 auto 16px"}}/>
+      {props.title&&<h2 style={{fontFamily:fd,fontSize:22,fontWeight:600,margin:"0 0 16px"}}>{props.title}</h2>}
+      {props.children}
+    </div>
+  </div>;
+}
+
+var bpS={background:T.pri,color:"#fff",padding:"12px 24px",borderRadius:12,fontSize:15,fontWeight:600};
+var bscS={background:T.ca,color:T.tx,padding:"12px 24px",borderRadius:12,fontSize:15,fontWeight:600,border:"1px solid "+T.brd};
+var bsmS={padding:"8px 16px",fontSize:13,borderRadius:10};
+var bdnS={background:T.errL,color:T.err,padding:"12px 24px",borderRadius:12,fontSize:15,fontWeight:600};
+var iptS={fontFamily:ff,width:"100%",padding:"12px 16px",borderRadius:12,border:"1px solid "+T.brd,fontSize:15,background:T.card,color:T.tx,outline:"none",boxSizing:"border-box"};
+var lblS={fontSize:12,fontWeight:600,color:T.tx2,textTransform:"uppercase",letterSpacing:".05em",margin:"0 0 8px"};
+var smS={fontSize:12,color:T.tx3};
+var hdS=function(sz){return{fontFamily:fd,fontSize:sz||17,fontWeight:600,margin:0}};
+var stkS={display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px 8px",position:"sticky",top:0,background:"rgba(250,250,249,.92)",backdropFilter:"blur(20px)",zIndex:50};
+
+/* ONBOARDING */
+function Onboard(){
+  var c=useC();var d=c.dispatch;
+  var _s=useState(0),step=_s[0],setStep=_s[1];
+  var _g=useState([]),goals=_g[0],setGoals=_g[1];
+  var _t=useState(SDT.map(function(t){return t.id})),sel=_t[0],setSel=_t[1];
+  var _i=useState("medium"),inte=_i[0],setInte=_i[1];
+
+  var gO=[{id:"fitness",l:"Get Fit",i:"💪"},{id:"learn",l:"Learn More",i:"📖"},{id:"mind",l:"Be Mindful",i:"🧘"},{id:"prod",l:"Productive",i:"⚡"},{id:"health",l:"Stay Healthy",i:"❤️"},{id:"create",l:"Be Creative",i:"🎨"}];
+
+  function finish(){
+    var tasks=SDT.filter(function(t){return sel.indexOf(t.id)>=0});
+    d({type:"OB",tasks:tasks.length>0?tasks:SDT});
+  }
+
+  if(step===0)return <div style={{minHeight:"100vh",background:T.bg}}>
+    <div style={{textAlign:"center",padding:"80px 24px 24px"}}>
+      <div style={{fontSize:64,marginBottom:20}}>🚀</div>
+      <h1 style={{fontFamily:fd,fontSize:34,fontWeight:700,margin:"0 0 8px"}}>LifeOS</h1>
+      <p style={{fontSize:16,color:T.tx2,maxWidth:280,margin:"0 auto 48px",lineHeight:1.5}}>Build habits, track progress, level up your life.</p>
+      <Btn onClick={function(){setStep(1)}} s={Object.assign({},bpS,{width:"100%"})}>Get Started</Btn>
+    </div>
+  </div>;
+
+  if(step===1)return <div style={{minHeight:"100vh",background:T.bg}}>
+    <div style={{padding:"16px 20px 0",display:"flex",alignItems:"center",gap:8}}>
+      <Btn onClick={function(){setStep(0)}} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn>
+      <div style={{flex:1,display:"flex",gap:4}}>{[1,2,3].map(function(i){return <div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=1?T.pri:T.brd}}/>})}</div>
+    </div>
+    <div style={{padding:"40px 24px 24px"}}>
+      <h2 style={Object.assign({},hdS(22),{marginBottom:4})}>What are your goals?</h2>
+      <p style={{fontSize:14,color:T.tx2,marginBottom:24}}>Select what matters to you.</p>
+      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:40}}>
+        {gO.map(function(g){return <Ch key={g.id} on={goals.indexOf(g.id)>=0} onClick={function(){setGoals(function(p){return p.indexOf(g.id)>=0?p.filter(function(x){return x!==g.id}):p.concat([g.id])})}}><span>{g.i}</span> {g.l}</Ch>})}
+      </div>
+      <Btn onClick={function(){setStep(2)}} s={Object.assign({},bpS,{width:"100%"})}>Continue</Btn>
+    </div>
+  </div>;
+
+  if(step===2)return <div style={{minHeight:"100vh",background:T.bg}}>
+    <div style={{padding:"16px 20px 0",display:"flex",alignItems:"center",gap:8}}>
+      <Btn onClick={function(){setStep(1)}} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn>
+      <div style={{flex:1,display:"flex",gap:4}}>{[1,2,3].map(function(i){return <div key={i} style={{flex:1,height:3,borderRadius:2,background:i<=2?T.pri:T.brd}}/>})}</div>
+    </div>
+    <div style={{padding:"40px 24px 24px"}}>
+      <h2 style={Object.assign({},hdS(22),{marginBottom:4})}>Choose starting habits</h2>
+      <p style={{fontSize:14,color:T.tx2,marginBottom:24}}>You can always add your own later.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:40}}>
+        {SDT.map(function(t){var on=sel.indexOf(t.id)>=0;return <Cd key={t.id} onClick={function(){setSel(function(p){return on?p.filter(function(x){return x!==t.id}):p.concat([t.id])})}} s={{marginBottom:0,display:"flex",alignItems:"center",gap:14,border:on?"2px solid "+T.pri:"1px solid "+T.brd,background:on?T.priL:T.card}}>
+          <span style={{fontSize:28}}>{t.icon}</span>
+          <div style={{flex:1}}><p style={hdS(15)}>{t.title}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>{t.tv} {t.unit} · {t.xp} XP</p></div>
+          <div style={{width:24,height:24,borderRadius:12,border:"2px solid "+(on?T.pri:T.brd),background:on?T.pri:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{color:"#fff",fontSize:14}}>✓</span>}</div>
+        </Cd>})}
+      </div>
+      <Btn onClick={function(){setStep(3)}} s={Object.assign({},bpS,{width:"100%"})}>Continue</Btn>
+    </div>
+  </div>;
+
+  return <div style={{minHeight:"100vh",background:T.bg}}>
+    <div style={{padding:"16px 20px 0",display:"flex",alignItems:"center",gap:8}}>
+      <Btn onClick={function(){setStep(2)}} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn>
+      <div style={{flex:1,display:"flex",gap:4}}>{[1,2,3].map(function(i){return <div key={i} style={{flex:1,height:3,borderRadius:2,background:T.pri}}/>})}</div>
+    </div>
+    <div style={{padding:"40px 24px 24px",textAlign:"center"}}>
+      <div style={{fontSize:56,marginBottom:16}}>⚡</div>
+      <h2 style={Object.assign({},hdS(22),{marginBottom:4})}>How ambitious are you?</h2>
+      <p style={{fontSize:14,color:T.tx2,marginBottom:32}}>Affects starting difficulty.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:40}}>
+        {[{id:"easy",l:"Starting Easy",d:"Build consistency first",i:"🌱"},{id:"medium",l:"Balanced",d:"Good mix of challenge",i:"⚖️"},{id:"hard",l:"All In",d:"Push from day one",i:"🔥"}].map(function(o){return <Cd key={o.id} onClick={function(){setInte(o.id)}} s={{marginBottom:0,display:"flex",alignItems:"center",gap:14,border:inte===o.id?"2px solid "+T.pri:"1px solid "+T.brd,background:inte===o.id?T.priL:T.card,textAlign:"left"}}>
+          <span style={{fontSize:28}}>{o.i}</span><div><p style={hdS(15)}>{o.l}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>{o.d}</p></div>
+        </Cd>})}
+      </div>
+      <Btn onClick={finish} s={Object.assign({},bpS,{width:"100%"})}>Launch My Journey 🚀</Btn>
+    </div>
+  </div>;
+}
+
+/* HOME */
+function Home(props){
+  var c=useC();var s=c.state,d=c.dispatch;
+  var _t=useState(null),toast=_t[0],setToast=_t[1];
+  function flash(m){setToast(m);setTimeout(function(){setToast(null)},2000)}
+
+  var act=s.tasks.filter(function(t){return !t.arch});
+  var dn=act.filter(function(t){return t.done}).length;
+  var lv=lvI(s.xp);
+  var pct=act.length>0?dn/act.length:0;
+
+  function stepF(t){
+    if(t.tt==="quantity")return 0.5;
+    if(t.tt==="distance"&&t.unit==="steps")return 1000;
+    if(t.tt==="duration")return 5;
+    if(t.tt==="pages")return 5;
+    return 1;
+  }
+  function addP(id,amt){
+    var t=s.tasks.find(function(x){return x.id===id});
+    if(!t||t.done)return;
+    d({type:"PROG",id:id,amt:amt});
+    if(t.prog+amt>=t.tv)flash("✅ "+t.title+" +"+t.xp+" XP");
+  }
+
+  return <div>
+    <Toaster msg={toast}/>
+    <div style={stkS}>
+      <div><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Today</h1><p style={Object.assign({},smS,{margin:0})}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</p></div>
+      <div style={{display:"flex",gap:8}}><Bd bg={T.priL} fg={T.priD}>Lv.{lv.level}</Bd><Bd bg={T.xpL} fg="#92400e">⚡{s.xpD}</Bd></div>
+    </div>
+    <div style={{padding:"0 20px 20px"}}>
+      <Cd s={{background:"linear-gradient(135deg,"+T.pri+"08,"+T.pri+"15)",border:"1px solid "+T.pri+"20"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:14,fontWeight:600}}>Daily Progress</span><span style={{fontSize:14,fontWeight:700,color:T.pri}}>{dn}/{act.length}</span></div>
+        <PB v={dn} mx={act.length} h={8}/>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}><span style={smS}>Level {lv.level} · {lv.cur}/{lv.next} XP</span><span style={smS}>{Math.round(pct*100)}%</span></div>
+        <PB v={lv.cur} mx={lv.next} color={T.acc} h={4}/>
+      </Cd>
+
+      {s.tasks.filter(function(t){return t.streak>0&&!t.arch}).length>0&&<div style={{display:"flex",gap:8,overflowX:"auto",marginBottom:16,paddingBottom:4}}>{s.tasks.filter(function(t){return t.streak>0&&!t.arch}).map(function(t){return <Bd key={t.id} bg="#FEF3C7" fg="#92400e">🔥{t.streak}d · {t.icon}{t.title}</Bd>})}</div>}
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><p style={lblS}>Today's Tasks</p><Btn onClick={function(){props.nav("ed",{})}} s={{fontSize:12,color:T.pri,background:"none",padding:"4px 8px"}}>+ Add</Btn></div>
+
+      {act.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:48,marginBottom:12}}>📋</div><p style={Object.assign({},hdS(17),{color:T.tx2})}>No tasks yet</p></div>
+      :act.map(function(t,i){return <Cd key={t.id} onClick={function(){props.nav("det",{id:t.id})}} s={{animation:"slideUp .3s ease "+i*0.04+"s both"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          {t.tt==="binary"?
+            <Btn onClick={function(e){e.stopPropagation();d({type:"TOG",id:t.id});if(!t.done)flash("✅ "+t.title+" +"+t.xp+" XP")}} s={{width:44,height:44,borderRadius:22,border:"2.5px solid "+(t.done?T.ok:(t.color||T.brd)),background:t.done?T.ok:"transparent",flexShrink:0}}>
+              {t.done?<span style={{color:"#fff",fontSize:20}}>✓</span>:<span style={{fontSize:22}}>{t.icon}</span>}
+            </Btn>
+          :<CP v={t.prog} mx={t.tv} sz={44} color={t.done?T.ok:(t.color||T.pri)}><span style={{fontSize:18}}>{t.done?"✓":t.icon}</span></CP>
+          }
+          <div style={{flex:1,minWidth:0}}>
+            <p style={Object.assign({},hdS(15),{textDecoration:t.done?"line-through":"none",opacity:t.done?0.5:1})}>{t.title}</p>
+            <p style={Object.assign({},smS,{margin:"2px 0 0"})}>{t.tt==="binary"?(t.done?"Done":"Tap to complete"):t.prog+"/"+t.tv+" "+t.unit}{t.streak>0?" · 🔥"+t.streak+"d":""}</p>
+          </div>
+          {t.tt!=="binary"&&!t.done&&<Btn onClick={function(e){e.stopPropagation();addP(t.id,stepF(t))}} s={{width:40,height:40,borderRadius:12,background:(t.color||T.pri)+"12",border:"1px solid "+(t.color||T.pri)+"30"}}><span style={{fontSize:16,color:t.color||T.pri}}>+</span></Btn>}
+          {t.done&&<Bd bg={T.xpL} fg="#92400e">⚡{t.xp}</Bd>}
+        </div>
+        {t.tt!=="binary"&&<div style={{marginTop:10}}><PB v={t.prog} mx={t.tv} color={t.done?T.ok:(t.color||T.pri)}/></div>}
+      </Cd>})}
+    </div>
+  </div>;
+}
+
+/* DETAIL */
+function Det(props){
+  var c=useC();var s=c.state,d=c.dispatch;
+  var t=s.tasks.find(function(x){return x.id===props.id});
+  var _t=useState(null),toast=_t[0],setToast=_t[1];
+  if(!t)return <div style={{padding:20}}><p>Not found</p><Btn onClick={props.back} s={bscS}>Back</Btn></div>;
+  function flash(m){setToast(m);setTimeout(function(){setToast(null)},2000)}
+  var cat=s.cats.find(function(c2){return c2.id===t.cat});
+  var lks=(t.ls||[]).map(function(l){return Object.assign({},l,{st:s.stats.find(function(x){return x.id===l.sid})})}).filter(function(l){return l.st});
+  var step=t.tt==="quantity"?0.25:t.tt==="distance"&&t.unit==="steps"?500:t.tt==="duration"?5:t.tt==="pages"?5:1;
+
+  return <div>
+    <Toaster msg={toast}/>
+    <div style={stkS}><Btn onClick={props.back} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn><Btn onClick={function(){props.nav("ed",{id:t.id})}} s={Object.assign({},bscS,bsmS)}>Edit</Btn></div>
+    <div style={{padding:"0 20px 20px"}}>
+      <div style={{textAlign:"center",padding:"16px 0 24px"}}>
+        <div style={{width:80,height:80,borderRadius:24,background:(t.color||T.pri)+"15",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:40}}>{t.icon}</div>
+        <h1 style={{fontFamily:fd,fontSize:28,fontWeight:700,margin:0}}>{t.title}</h1>
+        {t.desc&&<p style={{fontSize:14,color:T.tx2,margin:"4px 0 0"}}>{t.desc}</p>}
+        <div style={{display:"flex",justifyContent:"center",gap:8,marginTop:12,flexWrap:"wrap"}}>
+          {cat&&<Ch>{cat.icon} {cat.name}</Ch>}
+          <Bd bg={T.xpL} fg="#92400e">⚡{t.xp} XP</Bd>
+          {t.streak>0&&<Bd bg="#FEF3C7" fg="#92400e">🔥{t.streak}d</Bd>}
+        </div>
+      </div>
+      <Cd s={{textAlign:"center"}}><p style={Object.assign({},lblS,{textAlign:"center"})}>Today's Progress</p><div style={{display:"flex",justifyContent:"center",margin:"16px 0"}}>
+        {t.tt==="binary"?<Btn onClick={function(){d({type:"TOG",id:t.id})}} s={Object.assign({},t.done?{background:T.ok,color:"#fff"}:bpS,{width:200,height:56,borderRadius:28,fontSize:17})}>{t.done?"✓ Completed":"Mark Complete"}</Btn>
+        :<div><CP v={t.prog} mx={t.tv} sz={120} sw={8} color={t.done?T.ok:(t.color||T.pri)}><div style={{textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,fontFamily:fd}}>{t.prog}</div><div style={{fontSize:11,color:T.tx2}}>/ {t.tv} {t.unit}</div></div></CP>
+        {!t.done&&<div style={{marginTop:16,display:"flex",gap:8,justifyContent:"center"}}>{[step,step*2].map(function(a,i){return <Btn key={i} onClick={function(){d({type:"PROG",id:t.id,amt:a});if(t.prog+a>=t.tv)flash("✅ +"+t.xp+" XP")}} s={Object.assign({},bpS,bsmS)}>+{a} {t.unit}</Btn>})}</div>}</div>}
+      </div></Cd>
+      {t.tt!=="binary"&&<Cd><p style={lblS}>Adjust Target</p><div style={{display:"flex",justifyContent:"center"}}><Stp value={t.tv} onChange={function(v){d({type:"STV",id:t.id,v:v})}} min={1} step={t.tt==="quantity"?0.5:t.tt==="distance"&&t.unit==="steps"?500:1} unit={t.unit}/></div></Cd>}
+      {lks.length>0&&<Cd><p style={lblS}>Linked Stats</p><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{lks.map(function(l){return <Ch key={l.sid} s={{borderColor:l.st.color+"40",background:l.st.color+"10"}}>{l.st.icon} {l.st.name} <span style={{color:T.ok,fontWeight:700}}>+{l.a}</span></Ch>})}</div></Cd>}
+      <Cd><p style={lblS}>Statistics</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div><p style={smS}>Total Done</p><p style={Object.assign({},hdS(15),{margin:"2px 0 0"})}>{t.totalDone}</p></div><div><p style={smS}>Streak</p><p style={Object.assign({},hdS(15),{margin:"2px 0 0"})}>🔥 {t.streak}d</p></div><div><p style={smS}>Difficulty</p><p style={Object.assign({},hdS(15),{margin:"2px 0 0"})}>{(DF.find(function(x){return x.id===t.diff})||DF[1]).label}</p></div><div><p style={smS}>Recurrence</p><p style={Object.assign({},hdS(15),{margin:"2px 0 0"})}>{(REC.find(function(x){return x.id===t.rec})||REC[0]).label}</p></div></div></Cd>
+      <Btn onClick={function(){d({type:"ARC",id:t.id});props.back()}} s={Object.assign({},bdnS,{width:"100%"})}>Archive Task</Btn>
+    </div>
+  </div>;
+}
+
+/* EDITOR */
+function Ed(props){
+  var c=useC();var s=c.state,d=c.dispatch;
+  var ex=props.id?s.tasks.find(function(t){return t.id===props.id}):null;
+  var _f=useState({title:ex?ex.title:"",desc:ex?ex.desc:"",cat:ex?ex.cat:(s.cats[0]?s.cats[0].id:""),icon:ex?ex.icon:"⚡",tt:ex?ex.tt:"count",tv:ex?ex.tv:1,unit:ex?ex.unit:"times",diff:ex?ex.diff:"medium",xp:ex?ex.xp:30,rec:ex?ex.rec:"daily",color:ex?ex.color:T.pri,ls:ex?ex.ls:[]}),f=_f[0],setF=_f[1];
+  var _si=useState(false),sic=_si[0],setSic=_si[1];
+  var _nc=useState(""),nc=_nc[0],setNc=_nc[1];
+  var _snc=useState(false),snc=_snc[0],setSnc=_snc[1];
+  function u(k,v){setF(function(p){var o={};o[k]=v;return Object.assign({},p,o)})}
+  var tt=TT.find(function(x){return x.id===f.tt});
+  function tSt(sid){setF(function(p){var has=p.ls.find(function(x){return x.sid===sid});return Object.assign({},p,{ls:has?p.ls.filter(function(x){return x.sid!==sid}):p.ls.concat([{sid:sid,a:2}])})})}
+  function save(){if(!f.title.trim())return;if(ex)d({type:"EDT",task:Object.assign({},ex,f)});else d({type:"ADD",task:f});props.back()}
+
+  return <div>
+    <div style={stkS}><Btn onClick={props.back} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn><span style={hdS(17)}>{ex?"Edit Task":"New Task"}</span><Btn onClick={save} s={Object.assign({},bpS,bsmS)}>Save</Btn></div>
+    <div style={{padding:"0 20px 20px"}}>
+      <div style={{display:"flex",gap:12,marginBottom:16}}><Btn onClick={function(){setSic(!sic)}} s={{width:52,height:52,fontSize:28,borderRadius:16,border:"1px solid "+T.brd,background:T.card}}>{f.icon}</Btn><input style={Object.assign({},iptS,{flex:1,fontSize:18,fontWeight:600})} placeholder="Task name" value={f.title} onChange={function(e){u("title",e.target.value)}}/></div>
+      {sic&&<Cd s={{display:"flex",flexWrap:"wrap",gap:8}}>{ICS.map(function(ic){return <Btn key={ic} onClick={function(){u("icon",ic);setSic(false)}} s={{width:40,height:40,borderRadius:12,border:"1px solid "+(f.icon===ic?T.pri:T.brd),background:f.icon===ic?T.priL:"transparent",fontSize:18}}>{ic}</Btn>})}</Cd>}
+      <textarea style={Object.assign({},iptS,{minHeight:80,resize:"vertical",marginBottom:16})} placeholder="Description" value={f.desc} onChange={function(e){u("desc",e.target.value)}}/>
+      <p style={Object.assign({},lblS,{marginTop:8})}>Category</p>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>{s.cats.map(function(cat){return <Ch key={cat.id} on={f.cat===cat.id} onClick={function(){u("cat",cat.id)}}>{cat.icon} {cat.name}</Ch>})}<Ch onClick={function(){setSnc(true)}} s={{borderStyle:"dashed"}}>+ New</Ch></div>
+      {snc&&<div style={{display:"flex",gap:8,marginBottom:12}}><input style={Object.assign({},iptS,{flex:1})} placeholder="Name" value={nc} onChange={function(e){setNc(e.target.value)}}/><Btn onClick={function(){if(nc.trim()){d({type:"ACAT",c:{name:nc,icon:"📁",color:T.pri}});setNc("");setSnc(false)}}} s={Object.assign({},bpS,bsmS)}>Add</Btn></div>}
+      <p style={Object.assign({},lblS,{marginTop:16})}>Target Type</p>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{TT.map(function(t2){return <Ch key={t2.id} on={f.tt===t2.id} onClick={function(){u("tt",t2.id);if(t2.units[0])u("unit",t2.units[0]);if(t2.id==="binary"){u("tv",1);u("unit","complete")}}}>{t2.label}</Ch>})}</div>
+      {f.tt!=="binary"&&<div>{tt&&tt.units.length>0&&<div><p style={lblS}>Unit</p><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{tt.units.map(function(u2){return <Ch key={u2} on={f.unit===u2} onClick={function(){u("unit",u2)}}>{u2}</Ch>})}</div></div>}{f.tt==="custom"&&<input style={Object.assign({},iptS,{marginBottom:12})} placeholder="Custom unit" value={f.unit} onChange={function(e){u("unit",e.target.value)}}/>}<p style={lblS}>Target Value</p><div style={{display:"flex",justifyContent:"center",marginBottom:16}}><Stp value={f.tv} onChange={function(v){u("tv",v)}} min={1} step={f.tt==="quantity"?0.5:1} unit={f.unit}/></div></div>}
+      <p style={lblS}>Difficulty</p><div style={{display:"flex",gap:8,marginBottom:16}}>{DF.map(function(x){return <Ch key={x.id} on={f.diff===x.id} onClick={function(){u("diff",x.id)}} s={Object.assign({},{flex:1,justifyContent:"center"},f.diff===x.id?{background:x.c+"18",borderColor:x.c,color:x.c}:{})}>{x.label}</Ch>})}</div>
+      <p style={lblS}>XP Reward</p><div style={{display:"flex",justifyContent:"center",marginBottom:16}}><Stp value={f.xp} onChange={function(v){u("xp",v)}} min={5} step={5} unit="XP"/></div>
+      <p style={lblS}>Recurrence</p><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{REC.map(function(r){return <Ch key={r.id} on={f.rec===r.id} onClick={function(){u("rec",r.id)}}>{r.label}</Ch>})}</div>
+      <p style={lblS}>Linked Stats</p><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{s.stats.map(function(st){var lk=f.ls.find(function(x){return x.sid===st.id});return <Ch key={st.id} on={!!lk} onClick={function(){tSt(st.id)}} s={lk?{background:st.color+"15",borderColor:st.color}:{}}>{st.icon} {st.name}{lk?<span style={{color:T.ok,fontWeight:700}}> +{lk.a}</span>:null}</Ch>})}</div>
+      <p style={lblS}>Color</p><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:32}}>{CLS.map(function(clr){return <Btn key={clr} onClick={function(){u("color",clr)}} s={{width:36,height:36,borderRadius:12,background:clr,border:f.color===clr?"3px solid #1c1917":"3px solid transparent"}}/>})}</div>
+    </div>
+  </div>;
+}
+
+/* STATS */
+function Stats(){
+  var c=useC();var s=c.state;var lv=lvI(s.xp);
+  var mx=1;s.stats.forEach(function(x){if(x.value>mx)mx=x.value});
+  return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>My Rating</h1></div><div style={{padding:"0 20px 20px"}}>
+    <Cd s={{textAlign:"center",background:"linear-gradient(135deg,"+T.pri+"08,"+T.acc+"08)",border:"1px solid "+T.pri+"20"}}><div style={{display:"flex",justifyContent:"center",marginBottom:12}}><CP v={lv.cur} mx={lv.next} sz={100} sw={6} color={T.pri}><div style={{textAlign:"center"}}><div style={{fontSize:32,fontWeight:800,fontFamily:fd,color:T.pri}}>{lv.level}</div><div style={{fontSize:10,color:T.tx2,fontWeight:600}}>LEVEL</div></div></CP></div><p style={{fontSize:14,fontWeight:600,margin:0}}>{lv.cur} / {lv.next} XP to next level</p><p style={Object.assign({},smS,{margin:"4px 0 0"})}>Total: {s.xp} XP · {s.totalDone} tasks</p></Cd>
+    <p style={lblS}>Your Stats</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{s.stats.map(function(st){return <Cd key={st.id} s={{marginBottom:0}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:22}}>{st.icon}</span><div><p style={hdS(14)}>{st.name}</p><p style={{fontSize:12,color:st.color,fontWeight:700,margin:0}}>{st.value}</p></div></div><PB v={st.value} mx={mx} color={st.color} h={4}/></Cd>})}</div>
+    <Cd s={{marginTop:16}}><p style={lblS}>Overall Power</p><div style={{display:"flex",alignItems:"center",gap:16}}><span style={{fontSize:40,fontWeight:800,fontFamily:fd,color:T.pri}}>{s.stats.reduce(function(a,x){return a+x.value},0)}</span><div><p style={Object.assign({},smS,{margin:0})}>Combined from {s.stats.length} stats</p></div></div></Cd>
+  </div></div>;
+}
+
+/* PROGRESS */
+function Prog(){
+  var c=useC();var s=c.state;
+  var act=s.tasks.filter(function(t){return !t.arch});
+  var dn=act.filter(function(t){return t.done}).length;
+  var rate=act.length>0?Math.round((dn/act.length)*100):0;
+  var wk=s.wH.slice(-7);var mxp=1;wk.forEach(function(w){if(w.xp>mxp)mxp=w.xp});
+  return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Progress</h1></div><div style={{padding:"0 20px 20px"}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>{[{l:"Today",v:rate+"%",s2:"done",c:T.pri},{l:"XP Today",v:s.xpD,s2:"earned",c:T.acc},{l:"Best Streak",v:s.maxStreak+"d",s2:"record",c:"#ef4444"}].map(function(m){return <Cd key={m.l} s={{marginBottom:0,textAlign:"center"}}><p style={Object.assign({},smS,{margin:"0 0 4px"})}>{m.l}</p><p style={{fontSize:24,fontWeight:800,fontFamily:fd,color:m.c,margin:0}}>{m.v}</p><p style={Object.assign({},smS,{margin:0})}>{m.s2}</p></Cd>})}</div>
+    <Cd><p style={lblS}>Weekly</p>{wk.length>0?<div style={{display:"flex",alignItems:"flex-end",gap:6,height:100,padding:"8px 0"}}>{wk.map(function(w,i){return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:"100%",background:w.rate>=1?T.ok:w.rate>0?T.pri:T.ca,borderRadius:4,height:Math.max(4,(w.xp/mxp)*70)}}/><span style={{fontSize:9,color:T.tx3}}>{w.d?w.d.slice(5):""}</span></div>})}</div>:<p style={{fontSize:14,color:T.tx2,textAlign:"center",padding:20}}>Complete a day to see data</p>}</Cd>
+    <Cd><p style={lblS}>All Time</p><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>{[{l:"Total XP",v:s.xp,i:"⚡"},{l:"Tasks Done",v:s.totalDone,i:"✅"},{l:"Perfect Days",v:s.perfDays,i:"⭐"},{l:"Custom Tasks",v:s.customN,i:"🛠️"},{l:"Learnings",v:s.learnN,i:"📖"},{l:"Days",v:s.wH.length,i:"📊"}].map(function(x){return <div key={x.l} style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:22}}>{x.i}</span><div><p style={Object.assign({},smS,{margin:0})}>{x.l}</p><p style={{fontFamily:fd,fontWeight:600,fontSize:18,margin:0}}>{x.v}</p></div></div>})}</div></Cd>
+  </div></div>;
+}
+
+/* ACHIEVEMENTS */
+function Achs(){
+  var c=useC();var s=c.state;var achs=eA(s);
+  var ul=achs.filter(function(a){return a.unlocked}),lk=achs.filter(function(a){return !a.unlocked});
+  return <div><div style={stkS}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Achievements</h1><Bd bg={T.xpL} fg="#92400e">{ul.length}/{achs.length}</Bd></div><div style={{padding:"0 20px 20px"}}>
+    {ul.map(function(a){return <Cd key={a.id} s={{display:"flex",alignItems:"center",gap:14,background:"linear-gradient(135deg,"+T.xpL+","+T.card+")"}}><span style={{fontSize:36}}>{a.icon}</span><div style={{flex:1}}><p style={hdS(15)}>{a.title}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>{a.desc}</p></div><Bd bg={T.xpL} fg="#92400e">⚡{a.xp}</Bd></Cd>})}
+    <p style={Object.assign({},lblS,{marginTop:ul.length>0?16:0})}>In Progress</p>
+    {lk.map(function(a){return <Cd key={a.id} s={{display:"flex",alignItems:"center",gap:14,opacity:0.7}}><div style={{width:44,height:44,borderRadius:14,background:T.ca,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:24,filter:"grayscale(1)"}}>{a.icon}</span></div><div style={{flex:1}}><p style={hdS(15)}>{a.title}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>{a.desc}</p><div style={{marginTop:6,display:"flex",alignItems:"center",gap:8}}><div style={{flex:1}}><PB v={a.prog} mx={a.cv} h={4}/></div><span style={Object.assign({},smS,{fontWeight:600})}>{a.prog}/{a.cv}</span></div></div></Cd>})}
+  </div></div>;
+}
+
+/* LEARNING */
+function Lrn(props){
+  var c=useC();var s=c.state;
+  var rc=s.learns.filter(function(l){return l.read>=100}).length;
+  var catSet={};s.learns.forEach(function(l){catSet[l.cat]=true});var cats=["All"].concat(Object.keys(catSet));
+  var _fl=useState("All"),fl=_fl[0],setFl=_fl[1];
+  var list=fl==="All"?s.learns:s.learns.filter(function(l){return l.cat===fl});
+  return <div><div style={stkS}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Daily Learning</h1><span style={smS}>{rc}/{s.learns.length}</span></div><div style={{padding:"0 20px 20px"}}>
+    <div style={{display:"flex",gap:8,overflowX:"auto",marginBottom:16,paddingBottom:4}}>{cats.map(function(ct){return <Ch key={ct} on={fl===ct} onClick={function(){setFl(ct)}}>{ct}</Ch>})}</div>
+    {list.map(function(l,i){return <Cd key={l.id} onClick={function(){props.nav("ld",{id:l.id})}} s={{animation:"slideUp .3s ease "+i*0.04+"s both"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:48,height:48,borderRadius:14,background:l.read>=100?T.okL:T.priL,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:22}}>{l.read>=100?"✅":"📖"}</span></div><div style={{flex:1,minWidth:0}}><p style={hdS(15)}>{l.title}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>{l.author} · {l.cat}</p></div><span style={{color:T.tx3,fontSize:18}}>›</span></div><p style={{fontSize:13,color:T.tx2,marginTop:10,lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{l.sum}</p></Cd>})}
+  </div></div>;
+}
+function LDet(props){
+  var c=useC();var s=c.state,d=c.dispatch;var l=s.learns.find(function(x){return x.id===props.id});
+  if(!l)return <div style={{padding:20}}><p>Not found</p></div>;
+  return <div><div style={stkS}><Btn onClick={props.back} s={{width:40,height:40,background:"none",fontSize:20}}>←</Btn>{l.read<100&&<Btn onClick={function(){d({type:"RDL",id:l.id})}} s={Object.assign({},bpS,bsmS)}>Mark Read</Btn>}</div><div style={{padding:"0 20px 20px"}}>
+    <div style={{marginBottom:24}}><Ch s={{marginBottom:12}}>{l.cat}</Ch><h1 style={{fontFamily:fd,fontSize:26,fontWeight:700,margin:0}}>{l.title}</h1><p style={{fontSize:14,color:T.tx2,margin:"4px 0 0"}}>by {l.author}</p></div>
+    <Cd><p style={lblS}>Summary</p><p style={{fontSize:14,color:T.tx2,lineHeight:1.7,margin:0}}>{l.sum}</p></Cd>
+    <Cd><p style={lblS}>Key Points</p>{l.kp.map(function(k,i){return <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 0",borderBottom:i<l.kp.length-1?"1px solid "+T.brd:"none"}}><span style={{width:24,height:24,borderRadius:12,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.pri,flexShrink:0}}>{i+1}</span><p style={{fontSize:14,color:T.tx2,margin:0}}>{k}</p></div>})}</Cd>
+    <Cd><p style={lblS}>Action Steps</p>{l.acts.map(function(a,i){return <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 0",borderBottom:i<l.acts.length-1?"1px solid "+T.brd:"none"}}><span style={{fontSize:16,color:T.pri}}>→</span><p style={{fontSize:14,color:T.tx2,margin:0,fontWeight:500}}>{a}</p></div>})}</Cd>
+  </div></div>;
+}
+
+/* SETTINGS */
+function Sett(props){
+  var c=useC();var s=c.state,d=c.dispatch;
+  var _sr=useState(false),sr=_sr[0],setSr=_sr[1];
+  return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Settings</h1></div><div style={{padding:"0 20px 20px"}}>
+    <Cd s={{textAlign:"center"}}><div style={{width:64,height:64,borderRadius:20,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",fontSize:32}}>🚀</div><p style={hdS(18)}>Level {lvI(s.xp).level}</p><p style={Object.assign({},smS,{margin:"4px 0 0"})}>{s.xp} XP · {s.totalDone} tasks</p></Cd>
+    <p style={lblS}>Tasks</p><Cd><Btn onClick={function(){props.nav("ed",{})}} s={{width:"100%",background:"none",padding:"8px 0",fontSize:15,color:T.tx,justifyContent:"flex-start",gap:12}}><span style={{fontSize:20}}>➕</span><span style={{flex:1,textAlign:"left",fontWeight:500}}>Create New Task</span><span style={{color:T.tx3}}>›</span></Btn><div style={{borderTop:"1px solid "+T.brd,marginTop:8,paddingTop:8}}><p style={Object.assign({},smS,{margin:0})}>Active: {s.tasks.filter(function(t){return !t.arch}).length} · Archived: {s.tasks.filter(function(t){return t.arch}).length}</p></div></Cd>
+    <p style={lblS}>Data</p><Cd><p style={Object.assign({},smS,{margin:"0 0 12px"})}>Stored locally in your browser.</p><Btn onClick={function(){setSr(true)}} s={Object.assign({},bdnS,bsmS,{width:"100%"})}>Reset All Data</Btn></Cd>
+    <Sheet open={sr} onClose={function(){setSr(false)}} title="Reset All Data?"><p style={{fontSize:14,color:T.tx2,marginBottom:20,lineHeight:1.5}}>Deletes everything permanently.</p><div style={{display:"flex",gap:10}}><Btn onClick={function(){setSr(false)}} s={Object.assign({},bscS,{flex:1})}>Cancel</Btn><Btn onClick={function(){d({type:"RST"});setSr(false)}} s={Object.assign({},bdnS,{flex:1})}>Reset</Btn></div></Sheet>
+    <div style={{textAlign:"center",padding:"32px 0"}}><p style={smS}>LifeOS v1.0</p></div>
+  </div></div>;
+}
+
+/* MAIN */
+var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"stats",l:"Rating",i:"📊"},{id:"prog",l:"Progress",i:"📈"},{id:"achs",l:"Awards",i:"🏆"},{id:"learn",l:"Learn",i:"📖"}];
+
+function App(){
+  var _s=useReducer(red,mkS(null)),state=_s[0],dispatch=_s[1];
+  var _tab=useState("home"),tab=_tab[0],setTab=_tab[1];
+  var _stack=useState([]),stack=_stack[0],setStack=_stack[1];
+  var loaded=useRef(false);
+
+  useEffect(function(){
+    try{var raw=localStorage.getItem(STORE);if(raw){dispatch({type:"LD",data:JSON.parse(raw)})}}catch(e){}
+    loaded.current=true;
+  },[]);
+
+  useEffect(function(){
+    if(!loaded.current)return;
+    var t=setTimeout(function(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}},300);
+    return function(){clearTimeout(t)};
+  },[state]);
+
+  var nav=useCallback(function(scr,params){setStack(function(p){return p.concat([{scr:scr,params:params}])})},[]);
+  var back=useCallback(function(){setStack(function(p){return p.slice(0,-1)})},[]);
+  var cur=stack[stack.length-1];
+
+  if(!state.ob)return <Ctx.Provider value={{state:state,dispatch:dispatch}}><div style={{fontFamily:ff,background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}><Onboard/></div></Ctx.Provider>;
+
+  function render(){
+    if(cur){
+      if(cur.scr==="det")return <Det id={cur.params.id} nav={nav} back={back}/>;
+      if(cur.scr==="ed")return <Ed id={cur.params?cur.params.id:undefined} back={back}/>;
+      if(cur.scr==="ld")return <LDet id={cur.params.id} back={back}/>;
+      if(cur.scr==="settings")return <Sett nav={nav}/>;
+    }
+    if(tab==="home")return <Home nav={nav}/>;
+    if(tab==="stats")return <Stats/>;
+    if(tab==="prog")return <Prog/>;
+    if(tab==="achs")return <Achs/>;
+    if(tab==="learn")return <Lrn nav={nav}/>;
+    return <Home nav={nav}/>;
+  }
+
+  return <Ctx.Provider value={{state:state,dispatch:dispatch}}>
+    <div style={{fontFamily:ff,background:T.bg,color:T.tx,minHeight:"100vh",maxWidth:480,margin:"0 auto",position:"relative",paddingBottom:80}}>
+      {render()}
+      {!cur&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid "+T.brd,display:"flex",justifyContent:"space-around",padding:"6px 0 env(safe-area-inset-bottom,8px)",zIndex:100}}>
+        {TABS.map(function(t){return <Btn key={t.id} onClick={function(){setTab(t.id);setStack([])}} s={{flexDirection:"column",gap:2,padding:"6px 12px",background:"none",fontSize:10,color:tab===t.id?T.pri:T.tx3,fontWeight:tab===t.id?600:400}}><span style={{fontSize:22,lineHeight:"1"}}>{t.i}</span><span>{t.l}</span></Btn>})}
+        <Btn onClick={function(){nav("settings")}} s={{flexDirection:"column",gap:2,padding:"6px 12px",background:"none",fontSize:10,color:T.tx3}}><span style={{fontSize:22,lineHeight:"1"}}>⚙️</span><span>More</span></Btn>
+      </div>}
+    </div>
+  </Ctx.Provider>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
