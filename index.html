@@ -128,7 +128,8 @@ function mkS(defs){
     cats:SC.map(function(c){return{id:c.id,name:c.name,icon:c.icon,color:c.color}}),
     achs:SAch.map(function(a){return{id:a.id,title:a.title,desc:a.desc,icon:a.icon,ct:a.ct,cv:a.cv,xp:a.xp,unlocked:false,prog:0}}),
     learns:SLrn.map(function(l){return{id:l.id,title:l.title,author:l.author,sum:l.sum,kp:l.kp,acts:l.acts,cat:l.cat,read:l.read}}),
-    nutrition:{date:d,entries:[],apiKey:"",kcalGoal:2000}
+    nutrition:{date:d,entries:[],apiKey:"",kcalGoal:2000},
+    nutritionHistory:[]
   };
 }
 
@@ -139,8 +140,12 @@ function roll(s,now){
   var tasks=s.tasks.map(function(t){return t.arch?t:Object.assign({},t,{prog:0,done:false,streak:t.done?t.streak+1:0})});
   var ms=s.maxStreak;
   tasks.forEach(function(t){if(t.streak>ms)ms=t.streak});
-  var nutr=s.nutrition||{entries:[],apiKey:""};
-  return Object.assign({},s,{date:now,xpD:0,perfDays:ad?s.perfDays+1:s.perfDays,wH:s.wH.concat([{d:s.date,rate:r,xp:s.xpD}]).slice(-30),tasks:tasks,maxStreak:ms,nutrition:Object.assign({},nutr,{date:now,entries:[]})});
+  var nutr=s.nutrition||{entries:[],apiKey:"",kcalGoal:2000};
+  var ae=nutr.entries.filter(function(e){return e.analysis});
+  var daySum={date:s.date,kcal:Math.round(ae.reduce(function(a,e){return a+(e.analysis.calories||0)},0)),protein:Math.round(ae.reduce(function(a,e){return a+(e.analysis.protein_g||0)},0)),carbs:Math.round(ae.reduce(function(a,e){return a+(e.analysis.carbs_g||0)},0)),fat:Math.round(ae.reduce(function(a,e){return a+(e.analysis.fat_g||0)},0)),entryCount:nutr.entries.length};
+  var nh=(s.nutritionHistory||[]).filter(function(h){return h.date!==s.date});
+  if(daySum.entryCount>0)nh=[daySum].concat(nh).slice(0,60);
+  return Object.assign({},s,{date:now,xpD:0,perfDays:ad?s.perfDays+1:s.perfDays,wH:s.wH.concat([{d:s.date,rate:r,xp:s.xpD}]).slice(-30),tasks:tasks,maxStreak:ms,nutrition:Object.assign({},nutr,{date:now,entries:[]}),nutritionHistory:nh});
 }
 
 function red(state,action){
@@ -181,11 +186,12 @@ function red(state,action){
     case "ACAT":return Object.assign({},s,{cats:s.cats.concat([Object.assign({id:mkId()},action.c)])});
     case "RDL":{var w=false;var lr=s.learns.find(function(l){return l.id===action.id});if(lr&&lr.read<100)w=true;return Object.assign({},s,{learns:s.learns.map(function(l){return l.id===action.id?Object.assign({},l,{read:100}):l}),learnN:w?s.learnN+1:s.learnN})}
     case "RST":return Object.assign({},mkS(null),{ob:false});
-    case "NUTR_ADD":{var ne={id:mkId(),text:action.text,ts:Date.now(),analysis:null};var nn=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nn,{entries:nn.entries.concat([ne])})})}
+    case "NUTR_ADD":{var ne={id:action.id||mkId(),text:action.text,ts:Date.now(),analysis:null,satiety:null};var nn=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nn,{entries:nn.entries.concat([ne])})})}
     case "NUTR_DEL":{var nd=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nd,{entries:nd.entries.filter(function(e){return e.id!==action.id})})})}
     case "NUTR_ANALYSIS":{var na=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},na,{entries:na.entries.map(function(e){return e.id===action.id?Object.assign({},e,{analysis:action.data}):e})})})}
     case "NUTR_KEY":{var nk=s.nutrition||{entries:[],apiKey:"",kcalGoal:2000};return Object.assign({},s,{nutrition:Object.assign({},nk,{apiKey:action.key})})}
     case "NUTR_GOAL":{var ng=s.nutrition||{entries:[],apiKey:"",kcalGoal:2000};return Object.assign({},s,{nutrition:Object.assign({},ng,{kcalGoal:action.goal})})}
+    case "NUTR_SATIETY":{var nsat=s.nutrition||{entries:[]};return Object.assign({},s,{nutrition:Object.assign({},nsat,{entries:nsat.entries.map(function(e){return e.id===action.id?Object.assign({},e,{satiety:action.satiety}):e})})})}
     default:return s;
   }
 }
@@ -548,188 +554,194 @@ function LDet(props){
 /* SETTINGS */
 function Sett(props){
   var c=useC();var s=c.state,d=c.dispatch,user=c.user,toggleDark=c.toggleDark,darkMode=c.darkMode;
+  var nutr=s.nutrition||{apiKey:"",kcalGoal:2000};
   var _sr=useState(false),sr=_sr[0],setSr=_sr[1];
+  var _ki=useState(nutr.apiKey||""),keyInput=_ki[0],setKeyInput=_ki[1];
+  var _gi=useState(String(nutr.kcalGoal||2000)),goalInput=_gi[0],setGoalInput=_gi[1];
+  var _toast=useState(""),sToast=_toast[0],setSToast=_toast[1];
+  function showT(m){setSToast(m);setTimeout(function(){setSToast("")},2000)}
   return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Settings</h1></div><div style={{padding:"0 20px 20px"}}>
     <Cd s={{textAlign:"center"}}><div style={{width:64,height:64,borderRadius:20,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",fontSize:32}}>🚀</div><p style={hdS(18)}>Level {lvI(s.xp).level}</p><p style={Object.assign({},smS,{margin:"4px 0 0"})}>{s.xp} XP · {s.totalDone} tasks</p></Cd>
     <p style={lblS}>Tasks</p><Cd><Btn onClick={function(){props.nav("ed",{})}} s={{width:"100%",background:"none",padding:"8px 0",fontSize:15,color:T.tx,justifyContent:"flex-start",gap:12}}><span style={{fontSize:20}}>➕</span><span style={{flex:1,textAlign:"left",fontWeight:500}}>Create New Task</span><span style={{color:T.tx3}}>›</span></Btn><div style={{borderTop:"1px solid "+T.brd,marginTop:8,paddingTop:8}}><p style={Object.assign({},smS,{margin:0})}>Active: {s.tasks.filter(function(t){return !t.arch}).length} · Archived: {s.tasks.filter(function(t){return t.arch}).length}</p></div></Cd>
     {user&&<div><p style={lblS}>Konto</p><Cd><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>{user.photoURL&&<img src={user.photoURL} style={{width:40,height:40,borderRadius:20}} alt=""/>}<div><p style={{fontWeight:600,fontSize:14,margin:0}}>{user.displayName}</p><p style={{fontSize:12,color:T.tx2,margin:"2px 0 0"}}>{user.email}</p></div></div><p style={Object.assign({},smS,{margin:"0 0 12px",color:T.ok})}>✓ Daten werden mit Firebase synchronisiert</p><Btn onClick={function(){fbAuth.signOut()}} s={Object.assign({},bscS,{width:"100%"})}>Abmelden</Btn></Cd></div>}
-    <p style={lblS}>Darstellung</p><Cd><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><p style={{fontWeight:500,fontSize:15,margin:0}}>{darkMode?"🌙 Dark Mode":"☀️ Light Mode"}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>Folgt automatisch dem System</p></div><Btn onClick={toggleDark} s={{background:darkMode?T.pri:T.ca,color:darkMode?"#fff":T.tx,borderRadius:20,padding:"8px 16px",fontSize:13,fontWeight:600,border:"1px solid "+T.brd}}>{darkMode?"An":"Aus"}</Btn></div></Cd>
-    <p style={lblS}>Data</p><Cd><p style={Object.assign({},smS,{margin:"0 0 12px"})}>Stored locally in your browser.</p><Btn onClick={function(){setSr(true)}} s={Object.assign({},bdnS,bsmS,{width:"100%"})}>Reset All Data</Btn></Cd>
+    <Toaster msg={sToast}/>
+    <p style={lblS}>Darstellung</p><Cd><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><p style={{fontWeight:500,fontSize:15,margin:0}}>{darkMode?"🌙 Dark Mode":"☀️ Light Mode"}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>Folgt dem System</p></div><Btn onClick={toggleDark} s={{background:darkMode?T.pri:T.ca,color:darkMode?"#fff":T.tx,borderRadius:20,padding:"8px 16px",fontSize:13,fontWeight:600,border:"1px solid "+T.brd}}>{darkMode?"An":"Aus"}</Btn></div></Cd>
+    <p style={lblS}>Ernährung</p><Cd>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <p style={{fontWeight:500,fontSize:14,margin:0,color:T.tx}}>Tagesziel Kalorien</p>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <input type="number" value={goalInput} onChange={function(e){setGoalInput(e.target.value)}} style={{width:72,padding:"6px 8px",borderRadius:8,border:"1.5px solid "+T.brd,fontSize:14,fontFamily:ff,background:T.bg,color:T.tx,textAlign:"center"}}/>
+          <Btn onClick={function(){var g=parseInt(goalInput);if(g>0){d({type:"NUTR_GOAL",goal:g});showT("Gespeichert ✓")}}} s={{background:T.pri,color:"#fff",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600}}>OK</Btn>
+        </div>
+      </div>
+      <p style={{fontWeight:500,fontSize:14,margin:"0 0 8px",color:T.tx}}>Claude API Key</p>
+      <input type="password" value={keyInput} onChange={function(e){setKeyInput(e.target.value)}} placeholder="sk-ant-api03-..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid "+T.brd,fontSize:13,fontFamily:ff,marginBottom:10,background:T.bg,color:T.tx}}/>
+      <Btn onClick={function(){d({type:"NUTR_KEY",key:keyInput});showT("API Key gespeichert ✓")}} s={Object.assign({},bpS,{width:"100%"})}>Speichern</Btn>
+    </Cd>
+    <p style={lblS}>Data</p><Cd><p style={Object.assign({},smS,{margin:"0 0 12px"})}>Gespeichert lokal & in Firebase.</p><Btn onClick={function(){setSr(true)}} s={Object.assign({},bdnS,bsmS,{width:"100%"})}>Reset All Data</Btn></Cd>
     <Sheet open={sr} onClose={function(){setSr(false)}} title="Reset All Data?"><p style={{fontSize:14,color:T.tx2,marginBottom:20,lineHeight:1.5}}>Deletes everything permanently.</p><div style={{display:"flex",gap:10}}><Btn onClick={function(){setSr(false)}} s={Object.assign({},bscS,{flex:1})}>Cancel</Btn><Btn onClick={function(){d({type:"RST"});setSr(false)}} s={Object.assign({},bdnS,{flex:1})}>Reset</Btn></div></Sheet>
     <div style={{textAlign:"center",padding:"32px 0"}}><p style={smS}>LifeOS v1.0</p></div>
   </div></div>;
 }
 
 /* NUTRITION */
+function getRecentFoods(){try{return JSON.parse(localStorage.getItem("lifeos-rf")||"[]")}catch(e){return[]}}
+function saveRecentFood(t){var r=[t].concat(getRecentFoods().filter(function(f){return f!==t})).slice(0,8);localStorage.setItem("lifeos-rf",JSON.stringify(r));return r;}
+
 function NutrTab(){
   var _c=useC(),state=_c.state,dispatch=_c.dispatch;
   var nutr=state.nutrition||{entries:[],apiKey:"",kcalGoal:2000};
   var kcalGoal=nutr.kcalGoal||2000;
+  var entries=nutr.entries||[];
   var _t=useState(""),text=_t[0],setText=_t[1];
-  var _l=useState({}),loading=_l[0],setLoading=_l[1];
-  var _ki=useState(nutr.apiKey||""),keyInput=_ki[0],setKeyInput=_ki[1];
-  var _sk=useState(!nutr.apiKey),showKey=_sk[0],setShowKey=_sk[1];
+  var _az=useState({}),analyzing=_az[0],setAnalyzing=_az[1];
+  var _exp=useState(null),expanded=_exp[0],setExpanded=_exp[1];
+  var _rf=useState(getRecentFoods()),recentFoods=_rf[0],setRecentFoods=_rf[1];
   var _toast=useState(""),toast=_toast[0],setToast=_toast[1];
-  var _eg=useState(false),editGoal=_eg[0],setEditGoal=_eg[1];
-  var _gi=useState(String(kcalGoal)),goalInput=_gi[0],setGoalInput=_gi[1];
 
   function showT(m){setToast(m);setTimeout(function(){setToast("")},2500)}
 
-  function addEntry(){
+  function submit(){
     if(!text.trim())return;
-    dispatch({type:"NUTR_ADD",text:text.trim()});
+    var t=text.trim(),id=mkId();
+    dispatch({type:"NUTR_ADD",text:t,id:id});
     setText("");
+    var rf=saveRecentFood(t);
+    setRecentFoods(rf);
+    if(nutr.apiKey)autoAnalyze(id,t,nutr.apiKey);
   }
 
-  async function analyze(entry){
-    var key=nutr.apiKey;
-    if(!key){setShowKey(true);showT("Bitte zuerst API Key eingeben");return;}
-    setLoading(function(l){var x=Object.assign({},l);x[entry.id]=true;return x;});
+  async function autoAnalyze(id,foodText,key){
+    setAnalyzing(function(a){var x=Object.assign({},a);x[id]=true;return x;});
     try{
-      var res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "x-api-key":key,
-          "anthropic-version":"2023-06-01",
-          "anthropic-dangerous-direct-browser-access":"true"
-        },
-        body:JSON.stringify({
-          model:"claude-haiku-4-5-20251001",
-          max_tokens:400,
-          messages:[{
-            role:"user",
-            content:"Schätze die Nährwerte dieser Mahlzeit: \""+entry.text+"\"\n\nAntworte NUR mit JSON, kein Text davor/danach:\n{\"protein_g\":number,\"carbs_g\":number,\"fat_g\":number,\"calories\":number,\"grade\":number,\"note\":\"kurze deutsche Erklärung\"}\n\nNote: 1=sehr gesund, 2=gut, 3=okay, 4=mäßig, 5=ungesund, 6=sehr ungesund. Schätze typische Portionen wenn nicht angegeben."
-          }]
-        })
-      });
+      var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:200,messages:[{role:"user",content:"Nährwerte für: \""+foodText+"\"\nNur JSON: {\"protein_g\":n,\"carbs_g\":n,\"fat_g\":n,\"calories\":n}\nTypische Portionen wenn nicht angegeben."}]})});
       var data=await res.json();
       if(data.error)throw new Error(data.error.message);
-      var txt=data.content[0].text.trim();
-      var m=txt.match(/\{[\s\S]*\}/);
-      if(!m)throw new Error("Kein JSON");
-      var json=JSON.parse(m[0]);
-      dispatch({type:"NUTR_ANALYSIS",id:entry.id,data:json});
-    }catch(e){
-      showT("Fehler: "+(e.message||"Analyse fehlgeschlagen"));
-    }
-    setLoading(function(l){var x=Object.assign({},l);delete x[entry.id];return x;});
+      var m=data.content[0].text.match(/\{[\s\S]*\}/);
+      if(!m)throw new Error();
+      dispatch({type:"NUTR_ANALYSIS",id:id,data:JSON.parse(m[0])});
+    }catch(e){}
+    setAnalyzing(function(a){var x=Object.assign({},a);delete x[id];return x;});
   }
 
-  var analyzed=nutr.entries.filter(function(e){return e.analysis});
-  var totals=analyzed.reduce(function(acc,e){return{
-    protein:acc.protein+(e.analysis.protein_g||0),
-    carbs:acc.carbs+(e.analysis.carbs_g||0),
-    fat:acc.fat+(e.analysis.fat_g||0),
-    calories:acc.calories+(e.analysis.calories||0)
-  }},{protein:0,carbs:0,fat:0,calories:0});
-  var avgGrade=analyzed.length>0?analyzed.reduce(function(a,e){return a+(e.analysis.grade||3)},0)/analyzed.length:null;
+  var analyzed=entries.filter(function(e){return e.analysis});
+  var totals=analyzed.reduce(function(acc,e){return{kcal:acc.kcal+(e.analysis.calories||0),protein:acc.protein+(e.analysis.protein_g||0),carbs:acc.carbs+(e.analysis.carbs_g||0),fat:acc.fat+(e.analysis.fat_g||0)}},{kcal:0,protein:0,carbs:0,fat:0});
+  var kcalPct=Math.min(100,(totals.kcal/kcalGoal)*100);
+  var over=totals.kcal>kcalGoal;
+  var reversed=[].concat(entries).reverse();
 
-  function gradeColor(g){
-    if(g<=1.5)return T.ok;
-    if(g<=2.5)return "#84cc16";
-    if(g<=3.5)return T.acc;
-    if(g<=4.5)return "#f97316";
-    return T.err;
-  }
-  function gradeLabel(g){
-    var r=Math.round(g);
-    return["","Sehr gut","Gut","Befriedigend","Ausreichend","Mangelhaft","Ungenügend"][r]||"";
-  }
-
-  var entries=[].concat(nutr.entries).reverse();
-
-  return <div style={{padding:"16px 16px 100px"}}>
+  return <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg,fontFamily:ff}}>
     <Toaster msg={toast}/>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-      <h1 style={{fontFamily:fd,fontSize:26,fontWeight:700}}>🍽️ Ernährung</h1>
-      <Btn onClick={function(){setShowKey(function(v){return !v})}} s={{background:T.ca,borderRadius:10,padding:"8px 10px",fontSize:12,color:T.tx2,border:"1px solid "+T.brd}}>🔑 Key</Btn>
+    {/* Progress */}
+    <div style={{padding:"16px 16px 8px",flexShrink:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
+        <span style={{fontSize:20,fontWeight:700,fontFamily:fd,color:over?T.err:T.tx}}>{Math.round(totals.kcal)}<span style={{fontSize:13,fontWeight:400,color:T.tx2}}> / {kcalGoal} kcal</span></span>
+        <span style={{fontSize:12,color:over?T.err:T.tx3}}>{over?"+"+(Math.round(totals.kcal)-kcalGoal)+" über Ziel":Math.max(0,kcalGoal-Math.round(totals.kcal))+" verbleibend"}</span>
+      </div>
+      <div style={{height:6,background:T.ca,borderRadius:3,overflow:"hidden",marginBottom:5}}>
+        <div style={{height:"100%",width:kcalPct+"%",background:over?T.err:T.ok,borderRadius:3,transition:"width 0.4s"}}/>
+      </div>
+      {analyzed.length>0&&<p style={{fontSize:12,color:T.tx3,margin:0}}>🥩 {Math.round(totals.protein)}g · 🌾 {Math.round(totals.carbs)}g · 🫒 {Math.round(totals.fat)}g</p>}
     </div>
 
-    {showKey&&<Cd s={{marginBottom:16,borderColor:T.pri}}>
-      <p style={{fontSize:13,color:T.tx2,marginBottom:8,lineHeight:1.5}}>Claude API Key für KI-Analyse. Erhältlich auf console.anthropic.com</p>
-      <input type="password" value={keyInput} onChange={function(e){setKeyInput(e.target.value)}} placeholder="sk-ant-api03-..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid "+T.brd,fontSize:14,fontFamily:ff,marginBottom:10,background:T.card,color:T.tx}}/>
-      <Btn onClick={function(){dispatch({type:"NUTR_KEY",key:keyInput});setShowKey(false);showT("API Key gespeichert ✓")}} s={Object.assign({},bpS,{width:"100%"})}>Speichern</Btn>
-    </Cd>}
+    {/* Input */}
+    <div style={{padding:"0 16px 8px",flexShrink:0}}>
+      <div style={{background:T.card,borderRadius:14,border:"1px solid "+T.brd,padding:"10px 12px"}}>
+        <textarea value={text} onChange={function(e){setText(e.target.value)}} onKeyDown={function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submit();}}} placeholder="Was hast du gegessen?" style={{width:"100%",minHeight:entries.length>2?52:76,border:"none",outline:"none",fontSize:15,fontFamily:ff,color:T.tx,background:"transparent",resize:"none",lineHeight:1.5}}/>
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
+          <Btn onClick={submit} disabled={!text.trim()} s={Object.assign({},bpS,{padding:"8px 20px",fontSize:13})}>Eintragen</Btn>
+        </div>
+      </div>
+      {recentFoods.length>0&&!text&&<div style={{display:"flex",gap:6,marginTop:7,overflowX:"auto",paddingBottom:2}}>
+        {recentFoods.map(function(f,i){return <Btn key={i} onClick={function(){setText(f)}} s={{background:T.ca,color:T.tx2,borderRadius:20,padding:"4px 11px",fontSize:12,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.brd}}>{f.length>22?f.slice(0,22)+"…":f}</Btn>;})}
+      </div>}
+    </div>
 
-    <Cd s={{marginBottom:16}}>
-      <textarea value={text} onChange={function(e){setText(e.target.value)}} placeholder={"Was hast du gegessen?\nz.B. Haferbrei mit Banane, 2 Eier, Kaffee mit Milch"} style={{width:"100%",minHeight:90,border:"none",outline:"none",fontSize:15,fontFamily:ff,color:T.tx,background:"transparent",resize:"none",lineHeight:1.6}}/>
-      <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
-        <Btn onClick={addEntry} disabled={!text.trim()} s={Object.assign({},bpS,{padding:"10px 22px",fontSize:14})}>Eintragen</Btn>
-      </div>
-    </Cd>
-
-    {analyzed.length>0&&<Cd s={{marginBottom:16,background:T.priL,borderColor:T.pri}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <p style={{fontWeight:700,fontSize:15,fontFamily:fd}}>Tages-Summary</p>
-        {avgGrade&&<Bd bg={gradeColor(avgGrade)} fg="#fff">Note {avgGrade.toFixed(1)} · {gradeLabel(avgGrade)}</Bd>}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#ef4444"}}>{Math.round(totals.protein)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
-          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Protein</p>
-        </div>
-        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#f97316"}}>{Math.round(totals.carbs)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
-          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Kohlenhydrate</p>
-        </div>
-        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#eab308"}}>{Math.round(totals.fat)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
-          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Fett</p>
-        </div>
-        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
-          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:T.pri}}>{Math.round(totals.calories)}</p>
-          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>kcal</p>
-        </div>
-      </div>
-      <div style={{marginTop:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <p style={{fontSize:13,fontWeight:600,color:T.tx}}>Tagesziel Kalorien</p>
-          {editGoal
-            ?<div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <input type="number" value={goalInput} onChange={function(e){setGoalInput(e.target.value)}} style={{width:80,padding:"4px 8px",borderRadius:8,border:"1.5px solid "+T.pri,fontSize:13,fontFamily:ff,background:T.card,color:T.tx,textAlign:"center"}}/>
-              <Btn onClick={function(){var g=parseInt(goalInput);if(g>0){dispatch({type:"NUTR_GOAL",goal:g});}setEditGoal(false)}} s={{background:T.pri,color:"#fff",borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600}}>OK</Btn>
+    {/* Meal list */}
+    <div style={{flex:1,overflowY:"auto",padding:"0 16px 100px"}}>
+      {entries.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.tx3}}>
+        <div style={{fontSize:40,marginBottom:10}}>🥗</div>
+        <p style={{fontSize:15}}>Mahlzeiten eintragen</p>
+        {!nutr.apiKey&&<p style={{fontSize:12,marginTop:6}}>API Key in Einstellungen hinterlegen für automatische Analyse</p>}
+      </div>}
+      {reversed.map(function(entry){
+        var isExp=expanded===entry.id;
+        var a=entry.analysis;
+        var isAz=analyzing[entry.id];
+        return <div key={entry.id} style={{marginBottom:6}}>
+          <div onClick={function(){setExpanded(isExp?null:entry.id)}} style={{display:"flex",alignItems:"center",padding:"11px 13px",background:T.card,borderRadius:isExp?"12px 12px 0 0":12,border:"1px solid "+(isExp?T.pri:T.brd),cursor:"pointer",gap:8,transition:"border-color 0.15s"}}>
+            <p style={{flex:1,fontSize:14,color:T.tx,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.text}</p>
+            <span style={{fontSize:13,fontWeight:600,color:isAz?T.tx3:a?T.tx:T.tx3,flexShrink:0}}>{isAz?"analysiert…":a?Math.round(a.calories)+" kcal":"—"}</span>
+          </div>
+          {isExp&&<div style={{background:T.ca,border:"1px solid "+T.pri,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"10px 13px"}}>
+            {a&&<div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+              <Bd bg="#fee2e2" fg="#991b1b">🥩 {Math.round(a.protein_g||0)}g</Bd>
+              <Bd bg="#fed7aa" fg="#92400e">🌾 {Math.round(a.carbs_g||0)}g</Bd>
+              <Bd bg="#fef9c3" fg="#854d0e">🫒 {Math.round(a.fat_g||0)}g</Bd>
+            </div>}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                {[1,2,3,4,5].map(function(n){return <Btn key={n} onClick={function(){dispatch({type:"NUTR_SATIETY",id:entry.id,satiety:n})}} s={{fontSize:15,background:"none",padding:"2px",color:(entry.satiety||0)>=n?T.pri:T.brd}}>●</Btn>;})}
+                <span style={{fontSize:11,color:T.tx3,marginLeft:3}}>Sättigung</span>
+              </div>
+              <Btn onClick={function(){dispatch({type:"NUTR_DEL",id:entry.id});setExpanded(null)}} s={{background:T.errL,color:T.err,borderRadius:8,padding:"5px 10px",fontSize:12}}>Löschen</Btn>
             </div>
-            :<Btn onClick={function(){setGoalInput(String(kcalGoal));setEditGoal(true)}} s={{background:"rgba(255,255,255,.5)",color:T.pri,borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600}}>{kcalGoal} kcal ✏️</Btn>
-          }
+          </div>}
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+/* VERLAUF */
+function Verlauf(){
+  var _c=useC(),state=_c.state;
+  var nutr=state.nutrition||{entries:[],kcalGoal:2000};
+  var kcalGoal=nutr.kcalGoal||2000;
+  var history=state.nutritionHistory||[];
+  var analyzed=(nutr.entries||[]).filter(function(e){return e.analysis});
+  var todayKcal=Math.round(analyzed.reduce(function(a,e){return a+(e.analysis.calories||0)},0));
+  var today={date:getDay(),kcal:todayKcal,entryCount:nutr.entries.length,goalHit:todayKcal>=kcalGoal*0.85&&todayKcal<=kcalGoal*1.15};
+  var allDays=[today].concat(history.filter(function(h){return h.date!==getDay()})).slice(0,30);
+  var last7=allDays.slice(0,7).filter(function(d){return d.entryCount>0});
+  var avgKcal=last7.length>0?Math.round(last7.reduce(function(a,d){return a+d.kcal},0)/last7.length):0;
+  var adherence=last7.filter(function(d){return d.goalHit}).length;
+  function fmtDate(ds){var d=new Date(ds),dy=["So","Mo","Di","Mi","Do","Fr","Sa"];return dy[d.getDay()]+" "+d.getDate()+"."+(d.getMonth()+1)+".";}
+  return <div style={{padding:"16px 16px 100px",fontFamily:ff}}>
+    <h1 style={{fontFamily:fd,fontSize:26,fontWeight:700,marginBottom:16}}>📅 Verlauf</h1>
+    {last7.length>0&&<Cd s={{marginBottom:16,background:T.priL,borderColor:T.pri}}>
+      <p style={{fontWeight:700,fontSize:15,fontFamily:fd,marginBottom:12}}>Diese Woche</p>
+      <div style={{display:"flex",gap:12,marginBottom:12}}>
+        <div style={{flex:1,textAlign:"center",background:"rgba(255,255,255,.5)",borderRadius:10,padding:"10px 0"}}>
+          <p style={{fontFamily:fd,fontSize:22,fontWeight:700,color:T.pri,margin:0}}>{avgKcal}</p>
+          <p style={{fontSize:11,color:T.tx2,margin:"2px 0 0"}}>Ø kcal/Tag</p>
         </div>
-        <div style={{height:10,background:"rgba(0,0,0,.1)",borderRadius:5,overflow:"hidden"}}>
-          <div style={{height:"100%",borderRadius:5,width:Math.min(100,(totals.calories/kcalGoal)*100)+"%",background:totals.calories>kcalGoal?T.err:T.ok,transition:"width 0.4s"}}/>
+        <div style={{flex:1,textAlign:"center",background:"rgba(255,255,255,.5)",borderRadius:10,padding:"10px 0"}}>
+          <p style={{fontFamily:fd,fontSize:22,fontWeight:700,color:T.ok,margin:0}}>{adherence}/{last7.length}</p>
+          <p style={{fontSize:11,color:T.tx2,margin:"2px 0 0"}}>Ziel erreicht</p>
         </div>
-        <p style={{fontSize:12,color:T.tx2,marginTop:4,textAlign:"right"}}>{Math.round(totals.calories)} / {kcalGoal} kcal · {Math.max(0,Math.round(kcalGoal-totals.calories))} verbleibend</p>
+      </div>
+      <div style={{display:"flex",gap:3}}>
+        {allDays.slice(0,7).map(function(d,i){var pct=Math.min(100,(d.kcal/kcalGoal)*100);return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+          <div style={{width:"100%",height:32,background:T.ca,borderRadius:4,overflow:"hidden",display:"flex",alignItems:"flex-end"}}>
+            {d.entryCount>0&&<div style={{width:"100%",height:pct+"%",minHeight:4,background:d.goalHit?T.ok:T.err,borderRadius:4}}/>}
+          </div>
+          <span style={{fontSize:9,color:T.tx3}}>{d.date===getDay()?"H":fmtDate(d.date).slice(0,2)}</span>
+        </div>;})}
       </div>
     </Cd>}
-
-    {entries.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.tx3}}>
-      <div style={{fontSize:44,marginBottom:12}}>🥗</div>
-      <p style={{fontSize:15,fontWeight:500}}>Trag deine Mahlzeiten ein</p>
-      <p style={{fontSize:13,marginTop:6}}>Die KI analysiert Nährwerte & vergibt eine Note</p>
-    </div>}
-
-    {entries.map(function(entry){
-      return <Cd key={entry.id} s={{marginBottom:10}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:entry.analysis?10:0}}>
-          <p style={{fontSize:14,lineHeight:1.55,flex:1,color:T.tx}}>{entry.text}</p>
-          <div style={{display:"flex",gap:6,flexShrink:0}}>
-            {!entry.analysis&&<Btn onClick={function(){analyze(entry)}} disabled={!!loading[entry.id]} s={{background:T.priL,color:T.pri,borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:600}}>
-              {loading[entry.id]?"⏳":"✨ KI"}
-            </Btn>}
-            <Btn onClick={function(){dispatch({type:"NUTR_DEL",id:entry.id})}} s={{background:T.errL,color:T.err,borderRadius:8,padding:"6px 8px",fontSize:13}}>✕</Btn>
-          </div>
+    {allDays.length===0?<div style={{textAlign:"center",padding:"48px 0",color:T.tx3}}>
+      <div style={{fontSize:40,marginBottom:10}}>📊</div><p style={{fontSize:15}}>Noch keine Daten</p>
+    </div>:allDays.map(function(day){
+      var pct=Math.min(100,(day.kcal/kcalGoal)*100);
+      var isT=day.date===getDay();
+      return <div key={day.date} style={{marginBottom:6,padding:"11px 13px",background:T.card,borderRadius:12,border:"1px solid "+(isT?T.pri:T.brd)}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:day.entryCount>0?6:0}}>
+          <p style={{fontSize:14,fontWeight:isT?700:500,color:T.tx,margin:0}}>{isT?"Heute":fmtDate(day.date)}</p>
+          {day.entryCount>0?<span style={{fontSize:13,fontWeight:600,color:day.goalHit?T.ok:T.tx2}}>{day.kcal} kcal {day.goalHit?"✓":"✗"}</span>:<span style={{fontSize:12,color:T.tx3}}>Keine Einträge</span>}
         </div>
-        {entry.analysis&&<div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-            <Bd bg="#fee2e2" fg="#991b1b">🥩 {Math.round(entry.analysis.protein_g||0)}g</Bd>
-            <Bd bg="#fed7aa" fg="#92400e">🌾 {Math.round(entry.analysis.carbs_g||0)}g</Bd>
-            <Bd bg="#fef9c3" fg="#854d0e">🫒 {Math.round(entry.analysis.fat_g||0)}g</Bd>
-            <Bd bg={T.ca} fg={T.tx2}>{Math.round(entry.analysis.calories||0)} kcal</Bd>
-          </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <Bd bg={gradeColor(entry.analysis.grade||3)} fg="#fff">Note {entry.analysis.grade} · {gradeLabel(entry.analysis.grade||3)}</Bd>
-          </div>
-          {entry.analysis.note&&<p style={{fontSize:12,color:T.tx2,marginTop:8,lineHeight:1.5,fontStyle:"italic"}}>"{entry.analysis.note}"</p>}
-        </div>}
-      </Cd>;
+        {day.entryCount>0&&<div style={{height:4,background:T.ca,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:day.goalHit?T.ok:T.err,borderRadius:2}}/></div>}
+      </div>;
     })}
   </div>;
 }
@@ -765,7 +777,7 @@ function LoginScreen(){
 }
 
 /* MAIN */
-var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"stats",l:"Rating",i:"📊"},{id:"prog",l:"Progress",i:"📈"},{id:"achs",l:"Awards",i:"🏆"},{id:"learn",l:"Learn",i:"📖"},{id:"nutr",l:"Essen",i:"🍽️"}];
+var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"nutr",l:"Essen",i:"🍽️"},{id:"verlauf",l:"Verlauf",i:"📅"}];
 
 function App(){
   var _s=useReducer(red,mkS(null)),state=_s[0],dispatch=_s[1];
@@ -829,7 +841,7 @@ function App(){
         syncing.current=true;
         db.collection("users").doc(user.uid).set({state:state}).finally(function(){syncing.current=false;});
       }
-    },500);
+    },3000);
     return function(){clearTimeout(t)};
   },[state,user]);
 
@@ -855,11 +867,8 @@ function App(){
       if(cur.scr==="settings")return <Sett nav={nav}/>;
     }
     if(tab==="home")return <Home nav={nav}/>;
-    if(tab==="stats")return <Stats/>;
-    if(tab==="prog")return <Prog/>;
-    if(tab==="achs")return <Achs/>;
-    if(tab==="learn")return <Lrn nav={nav}/>;
     if(tab==="nutr")return <NutrTab/>;
+    if(tab==="verlauf")return <Verlauf/>;
     return <Home nav={nav}/>;
   }
 
