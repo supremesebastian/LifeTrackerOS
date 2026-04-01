@@ -40,6 +40,22 @@ window.onerror = function(msg, url, line, col, err) {
 };
 </script>
 
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyAuVgRum977LT09GJPQA2nHzkUxWRixv6E",
+  authDomain:"lifeos-f0b0a.firebaseapp.com",
+  projectId:"lifeos-f0b0a",
+  storageBucket:"lifeos-f0b0a.firebasestorage.app",
+  messagingSenderId:"569805267643",
+  appId:"1:569805267643:web:5cd287ab4b0e1f8557bf9e"
+});
+var db=firebase.firestore();
+var fbAuth=firebase.auth();
+</script>
+
 <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js" crossorigin></script>
@@ -528,11 +544,12 @@ function LDet(props){
 
 /* SETTINGS */
 function Sett(props){
-  var c=useC();var s=c.state,d=c.dispatch;
+  var c=useC();var s=c.state,d=c.dispatch,user=c.user;
   var _sr=useState(false),sr=_sr[0],setSr=_sr[1];
   return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Settings</h1></div><div style={{padding:"0 20px 20px"}}>
     <Cd s={{textAlign:"center"}}><div style={{width:64,height:64,borderRadius:20,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",fontSize:32}}>🚀</div><p style={hdS(18)}>Level {lvI(s.xp).level}</p><p style={Object.assign({},smS,{margin:"4px 0 0"})}>{s.xp} XP · {s.totalDone} tasks</p></Cd>
     <p style={lblS}>Tasks</p><Cd><Btn onClick={function(){props.nav("ed",{})}} s={{width:"100%",background:"none",padding:"8px 0",fontSize:15,color:T.tx,justifyContent:"flex-start",gap:12}}><span style={{fontSize:20}}>➕</span><span style={{flex:1,textAlign:"left",fontWeight:500}}>Create New Task</span><span style={{color:T.tx3}}>›</span></Btn><div style={{borderTop:"1px solid "+T.brd,marginTop:8,paddingTop:8}}><p style={Object.assign({},smS,{margin:0})}>Active: {s.tasks.filter(function(t){return !t.arch}).length} · Archived: {s.tasks.filter(function(t){return t.arch}).length}</p></div></Cd>
+    {user&&<div><p style={lblS}>Konto</p><Cd><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>{user.photoURL&&<img src={user.photoURL} style={{width:40,height:40,borderRadius:20}} alt=""/>}<div><p style={{fontWeight:600,fontSize:14,margin:0}}>{user.displayName}</p><p style={{fontSize:12,color:T.tx2,margin:"2px 0 0"}}>{user.email}</p></div></div><p style={Object.assign({},smS,{margin:"0 0 12px",color:T.ok})}>✓ Daten werden mit Firebase synchronisiert</p><Btn onClick={function(){fbAuth.signOut()}} s={Object.assign({},bscS,{width:"100%"})}>Abmelden</Btn></Cd></div>}
     <p style={lblS}>Data</p><Cd><p style={Object.assign({},smS,{margin:"0 0 12px"})}>Stored locally in your browser.</p><Btn onClick={function(){setSr(true)}} s={Object.assign({},bdnS,bsmS,{width:"100%"})}>Reset All Data</Btn></Cd>
     <Sheet open={sr} onClose={function(){setSr(false)}} title="Reset All Data?"><p style={{fontSize:14,color:T.tx2,marginBottom:20,lineHeight:1.5}}>Deletes everything permanently.</p><div style={{display:"flex",gap:10}}><Btn onClick={function(){setSr(false)}} s={Object.assign({},bscS,{flex:1})}>Cancel</Btn><Btn onClick={function(){d({type:"RST"});setSr(false)}} s={Object.assign({},bdnS,{flex:1})}>Reset</Btn></div></Sheet>
     <div style={{textAlign:"center",padding:"32px 0"}}><p style={smS}>LifeOS v1.0</p></div>
@@ -694,6 +711,36 @@ function NutrTab(){
   </div>;
 }
 
+/* LOGIN */
+function LoginScreen(){
+  var _l=useState(false),loading=_l[0],setLoading=_l[1];
+  var _e=useState(""),err=_e[0],setErr=_e[1];
+  function signIn(){
+    setLoading(true);setErr("");
+    var provider=new firebase.auth.GoogleAuthProvider();
+    fbAuth.signInWithPopup(provider).catch(function(e){
+      if(e.code==="auth/popup-blocked"||e.code==="auth/popup-closed-by-user"){
+        fbAuth.signInWithRedirect(provider);
+      } else {
+        setErr("Anmeldung fehlgeschlagen. Bitte nochmal versuchen.");
+        setLoading(false);
+      }
+    });
+  }
+  return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg,padding:24,fontFamily:ff}}>
+    <div style={{textAlign:"center",maxWidth:340}}>
+      <div style={{width:80,height:80,borderRadius:24,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",fontSize:40}}>⚡</div>
+      <h1 style={{fontFamily:fd,fontSize:30,fontWeight:700,marginBottom:8}}>LifeOS</h1>
+      <p style={{color:T.tx2,marginBottom:32,lineHeight:1.6,fontSize:15}}>Melde dich an um deine Daten auf iPhone und iPad zu synchronisieren.</p>
+      {err&&<p style={{color:T.err,fontSize:13,marginBottom:16,background:T.errL,padding:"10px 14px",borderRadius:10}}>{err}</p>}
+      <Btn onClick={signIn} disabled={loading} s={Object.assign({},bpS,{width:"100%",justifyContent:"center",gap:10,fontSize:16,padding:"14px 24px"})}>
+        <span style={{fontSize:20}}>🔑</span><span>{loading?"Wird angemeldet…":"Mit Google anmelden"}</span>
+      </Btn>
+      <p style={{color:T.tx3,fontSize:12,marginTop:20,lineHeight:1.5}}>Deine Daten werden sicher in Firebase gespeichert und nur mit deinem Google-Account verknüpft.</p>
+    </div>
+  </div>;
+}
+
 /* MAIN */
 var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"stats",l:"Rating",i:"📊"},{id:"prog",l:"Progress",i:"📈"},{id:"achs",l:"Awards",i:"🏆"},{id:"learn",l:"Learn",i:"📖"},{id:"nutr",l:"Essen",i:"🍽️"}];
 
@@ -702,18 +749,52 @@ function App(){
   var _tab=useState("home"),tab=_tab[0],setTab=_tab[1];
   var _stack=useState([]),stack=_stack[0],setStack=_stack[1];
   var _w=useState(window.innerWidth>=768),wide=_w[0],setWide=_w[1];
+  var _user=useState(null),user=_user[0],setUser=_user[1];
+  var _authL=useState(true),authLoading=_authL[0],setAuthLoading=_authL[1];
   var loaded=useRef(false);
+  var syncing=useRef(false);
 
   useEffect(function(){
-    try{var raw=localStorage.getItem(STORE);if(raw){dispatch({type:"LD",data:JSON.parse(raw)})}}catch(e){}
-    loaded.current=true;
+    fbAuth.getRedirectResult().catch(function(){});
+    var unsub=fbAuth.onAuthStateChanged(function(u){
+      setUser(u);
+      setAuthLoading(false);
+    });
+    return unsub;
   },[]);
 
   useEffect(function(){
+    if(authLoading)return;
+    loaded.current=false;
+    if(user){
+      db.collection("users").doc(user.uid).get().then(function(doc){
+        if(doc.exists&&doc.data().state){
+          dispatch({type:"LD",data:doc.data().state});
+        } else {
+          try{var raw=localStorage.getItem(STORE);if(raw)dispatch({type:"LD",data:JSON.parse(raw)})}catch(e){}
+        }
+        loaded.current=true;
+      }).catch(function(){
+        try{var raw=localStorage.getItem(STORE);if(raw)dispatch({type:"LD",data:JSON.parse(raw)})}catch(e){}
+        loaded.current=true;
+      });
+    } else {
+      try{var raw=localStorage.getItem(STORE);if(raw){dispatch({type:"LD",data:JSON.parse(raw)})}}catch(e){}
+      loaded.current=true;
+    }
+  },[user,authLoading]);
+
+  useEffect(function(){
     if(!loaded.current)return;
-    var t=setTimeout(function(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}},300);
+    var t=setTimeout(function(){
+      try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}
+      if(user&&!syncing.current){
+        syncing.current=true;
+        db.collection("users").doc(user.uid).set({state:state}).finally(function(){syncing.current=false;});
+      }
+    },500);
     return function(){clearTimeout(t)};
-  },[state]);
+  },[state,user]);
 
   useEffect(function(){
     function onR(){setWide(window.innerWidth>=768)}
@@ -725,7 +806,9 @@ function App(){
   var back=useCallback(function(){setStack(function(p){return p.slice(0,-1)})},[]);
   var cur=stack[stack.length-1];
 
-  if(!state.ob)return <Ctx.Provider value={{state:state,dispatch:dispatch}}><div style={{fontFamily:ff,background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}><Onboard/></div></Ctx.Provider>;
+  if(authLoading)return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⚡</div><p style={{color:T.tx2,fontFamily:ff}}>Wird geladen…</p></div></div>;
+  if(!user)return <LoginScreen/>;
+  if(!state.ob)return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}><div style={{fontFamily:ff,background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}><Onboard/></div></Ctx.Provider>;
 
   function render(){
     if(cur){
@@ -744,7 +827,7 @@ function App(){
   }
 
   if(wide){
-    return <Ctx.Provider value={{state:state,dispatch:dispatch}}>
+    return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}>
       <div style={{display:"flex",height:"100vh",background:T.bg,color:T.tx,fontFamily:ff,overflow:"hidden"}}>
         <div style={{width:230,background:T.card,borderRight:"1px solid "+T.brd,display:"flex",flexDirection:"column",padding:"28px 12px 20px",flexShrink:0}}>
           <div style={{padding:"0 10px 28px"}}>
@@ -763,7 +846,7 @@ function App(){
     </Ctx.Provider>;
   }
 
-  return <Ctx.Provider value={{state:state,dispatch:dispatch}}>
+  return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}>
     <div style={{fontFamily:ff,background:T.bg,color:T.tx,minHeight:"100vh",maxWidth:480,margin:"0 auto",position:"relative",paddingBottom:80}}>
       {render()}
       {!cur&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid "+T.brd,display:"flex",justifyContent:"space-around",padding:"6px 0 env(safe-area-inset-bottom,8px)",zIndex:100}}>
