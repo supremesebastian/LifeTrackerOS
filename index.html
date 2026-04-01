@@ -109,7 +109,8 @@ function mkS(defs){
     stats:SSt.map(function(s){return{id:s.id,name:s.name,icon:s.icon,value:s.value,color:s.color}}),
     cats:SC.map(function(c){return{id:c.id,name:c.name,icon:c.icon,color:c.color}}),
     achs:SAch.map(function(a){return{id:a.id,title:a.title,desc:a.desc,icon:a.icon,ct:a.ct,cv:a.cv,xp:a.xp,unlocked:false,prog:0}}),
-    learns:SLrn.map(function(l){return{id:l.id,title:l.title,author:l.author,sum:l.sum,kp:l.kp,acts:l.acts,cat:l.cat,read:l.read}})
+    learns:SLrn.map(function(l){return{id:l.id,title:l.title,author:l.author,sum:l.sum,kp:l.kp,acts:l.acts,cat:l.cat,read:l.read}}),
+    nutrition:{date:d,entries:[],apiKey:""}
   };
 }
 
@@ -120,7 +121,8 @@ function roll(s,now){
   var tasks=s.tasks.map(function(t){return t.arch?t:Object.assign({},t,{prog:0,done:false,streak:t.done?t.streak+1:0})});
   var ms=s.maxStreak;
   tasks.forEach(function(t){if(t.streak>ms)ms=t.streak});
-  return Object.assign({},s,{date:now,xpD:0,perfDays:ad?s.perfDays+1:s.perfDays,wH:s.wH.concat([{d:s.date,rate:r,xp:s.xpD}]).slice(-30),tasks:tasks,maxStreak:ms});
+  var nutr=s.nutrition||{entries:[],apiKey:""};
+  return Object.assign({},s,{date:now,xpD:0,perfDays:ad?s.perfDays+1:s.perfDays,wH:s.wH.concat([{d:s.date,rate:r,xp:s.xpD}]).slice(-30),tasks:tasks,maxStreak:ms,nutrition:Object.assign({},nutr,{date:now,entries:[]})});
 }
 
 function red(state,action){
@@ -161,6 +163,10 @@ function red(state,action){
     case "ACAT":return Object.assign({},s,{cats:s.cats.concat([Object.assign({id:mkId()},action.c)])});
     case "RDL":{var w=false;var lr=s.learns.find(function(l){return l.id===action.id});if(lr&&lr.read<100)w=true;return Object.assign({},s,{learns:s.learns.map(function(l){return l.id===action.id?Object.assign({},l,{read:100}):l}),learnN:w?s.learnN+1:s.learnN})}
     case "RST":return Object.assign({},mkS(null),{ob:false});
+    case "NUTR_ADD":{var ne={id:mkId(),text:action.text,ts:Date.now(),analysis:null};var nn=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nn,{entries:nn.entries.concat([ne])})})}
+    case "NUTR_DEL":{var nd=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nd,{entries:nd.entries.filter(function(e){return e.id!==action.id})})})}
+    case "NUTR_ANALYSIS":{var na=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},na,{entries:na.entries.map(function(e){return e.id===action.id?Object.assign({},e,{analysis:action.data}):e})})})}
+    case "NUTR_KEY":{var nk=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nk,{apiKey:action.key})})}
     default:return s;
   }
 }
@@ -533,8 +539,163 @@ function Sett(props){
   </div></div>;
 }
 
+/* NUTRITION */
+function NutrTab(){
+  var _c=useC(),state=_c.state,dispatch=_c.dispatch;
+  var nutr=state.nutrition||{entries:[],apiKey:""};
+  var _t=useState(""),text=_t[0],setText=_t[1];
+  var _l=useState({}),loading=_l[0],setLoading=_l[1];
+  var _ki=useState(nutr.apiKey||""),keyInput=_ki[0],setKeyInput=_ki[1];
+  var _sk=useState(!nutr.apiKey),showKey=_sk[0],setShowKey=_sk[1];
+  var _toast=useState(""),toast=_toast[0],setToast=_toast[1];
+
+  function showT(m){setToast(m);setTimeout(function(){setToast("")},2500)}
+
+  function addEntry(){
+    if(!text.trim())return;
+    dispatch({type:"NUTR_ADD",text:text.trim()});
+    setText("");
+  }
+
+  async function analyze(entry){
+    var key=nutr.apiKey;
+    if(!key){setShowKey(true);showT("Bitte zuerst API Key eingeben");return;}
+    setLoading(function(l){var x=Object.assign({},l);x[entry.id]=true;return x;});
+    try{
+      var res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-api-key":key,
+          "anthropic-version":"2023-06-01",
+          "anthropic-dangerous-direct-browser-access":"true"
+        },
+        body:JSON.stringify({
+          model:"claude-haiku-4-5-20251001",
+          max_tokens:400,
+          messages:[{
+            role:"user",
+            content:"Schätze die Nährwerte dieser Mahlzeit: \""+entry.text+"\"\n\nAntworte NUR mit JSON, kein Text davor/danach:\n{\"protein_g\":number,\"carbs_g\":number,\"fat_g\":number,\"calories\":number,\"grade\":number,\"note\":\"kurze deutsche Erklärung\"}\n\nNote: 1=sehr gesund, 2=gut, 3=okay, 4=mäßig, 5=ungesund, 6=sehr ungesund. Schätze typische Portionen wenn nicht angegeben."
+          }]
+        })
+      });
+      var data=await res.json();
+      if(data.error)throw new Error(data.error.message);
+      var txt=data.content[0].text.trim();
+      var m=txt.match(/\{[\s\S]*\}/);
+      if(!m)throw new Error("Kein JSON");
+      var json=JSON.parse(m[0]);
+      dispatch({type:"NUTR_ANALYSIS",id:entry.id,data:json});
+    }catch(e){
+      showT("Fehler: "+(e.message||"Analyse fehlgeschlagen"));
+    }
+    setLoading(function(l){var x=Object.assign({},l);delete x[entry.id];return x;});
+  }
+
+  var analyzed=nutr.entries.filter(function(e){return e.analysis});
+  var totals=analyzed.reduce(function(acc,e){return{
+    protein:acc.protein+(e.analysis.protein_g||0),
+    carbs:acc.carbs+(e.analysis.carbs_g||0),
+    fat:acc.fat+(e.analysis.fat_g||0),
+    calories:acc.calories+(e.analysis.calories||0)
+  }},{protein:0,carbs:0,fat:0,calories:0});
+  var avgGrade=analyzed.length>0?analyzed.reduce(function(a,e){return a+(e.analysis.grade||3)},0)/analyzed.length:null;
+
+  function gradeColor(g){
+    if(g<=1.5)return T.ok;
+    if(g<=2.5)return "#84cc16";
+    if(g<=3.5)return T.acc;
+    if(g<=4.5)return "#f97316";
+    return T.err;
+  }
+  function gradeLabel(g){
+    var r=Math.round(g);
+    return["","Sehr gut","Gut","Befriedigend","Ausreichend","Mangelhaft","Ungenügend"][r]||"";
+  }
+
+  var entries=[].concat(nutr.entries).reverse();
+
+  return <div style={{padding:"16px 16px 100px"}}>
+    <Toaster msg={toast}/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <h1 style={{fontFamily:fd,fontSize:26,fontWeight:700}}>🍽️ Ernährung</h1>
+      <Btn onClick={function(){setShowKey(function(v){return !v})}} s={{background:T.ca,borderRadius:10,padding:"8px 10px",fontSize:12,color:T.tx2,border:"1px solid "+T.brd}}>🔑 Key</Btn>
+    </div>
+
+    {showKey&&<Cd s={{marginBottom:16,borderColor:T.pri}}>
+      <p style={{fontSize:13,color:T.tx2,marginBottom:8,lineHeight:1.5}}>Claude API Key für KI-Analyse. Erhältlich auf console.anthropic.com</p>
+      <input type="password" value={keyInput} onChange={function(e){setKeyInput(e.target.value)}} placeholder="sk-ant-api03-..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1.5px solid "+T.brd,fontSize:14,fontFamily:ff,marginBottom:10,background:T.card,color:T.tx}}/>
+      <Btn onClick={function(){dispatch({type:"NUTR_KEY",key:keyInput});setShowKey(false);showT("API Key gespeichert ✓")}} s={Object.assign({},bpS,{width:"100%"})}>Speichern</Btn>
+    </Cd>}
+
+    <Cd s={{marginBottom:16}}>
+      <textarea value={text} onChange={function(e){setText(e.target.value)}} placeholder={"Was hast du gegessen?\nz.B. Haferbrei mit Banane, 2 Eier, Kaffee mit Milch"} style={{width:"100%",minHeight:90,border:"none",outline:"none",fontSize:15,fontFamily:ff,color:T.tx,background:"transparent",resize:"none",lineHeight:1.6}}/>
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+        <Btn onClick={addEntry} disabled={!text.trim()} s={Object.assign({},bpS,{padding:"10px 22px",fontSize:14})}>Eintragen</Btn>
+      </div>
+    </Cd>
+
+    {analyzed.length>0&&<Cd s={{marginBottom:16,background:T.priL,borderColor:T.pri}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <p style={{fontWeight:700,fontSize:15,fontFamily:fd}}>Tages-Summary</p>
+        {avgGrade&&<Bd bg={gradeColor(avgGrade)} fg="#fff">Note {avgGrade.toFixed(1)} · {gradeLabel(avgGrade)}</Bd>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#ef4444"}}>{Math.round(totals.protein)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
+          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Protein</p>
+        </div>
+        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#f97316"}}>{Math.round(totals.carbs)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
+          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Kohlenhydrate</p>
+        </div>
+        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:"#eab308"}}>{Math.round(totals.fat)}<span style={{fontSize:12,fontWeight:400}}>g</span></p>
+          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>Fett</p>
+        </div>
+        <div style={{background:"rgba(255,255,255,.75)",borderRadius:12,padding:"12px 8px",textAlign:"center"}}>
+          <p style={{fontSize:22,fontWeight:700,fontFamily:fd,color:T.pri}}>{Math.round(totals.calories)}</p>
+          <p style={{fontSize:12,color:T.tx2,marginTop:2}}>kcal</p>
+        </div>
+      </div>
+    </Cd>}
+
+    {entries.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.tx3}}>
+      <div style={{fontSize:44,marginBottom:12}}>🥗</div>
+      <p style={{fontSize:15,fontWeight:500}}>Trag deine Mahlzeiten ein</p>
+      <p style={{fontSize:13,marginTop:6}}>Die KI analysiert Nährwerte & vergibt eine Note</p>
+    </div>}
+
+    {entries.map(function(entry){
+      return <Cd key={entry.id} s={{marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:entry.analysis?10:0}}>
+          <p style={{fontSize:14,lineHeight:1.55,flex:1,color:T.tx}}>{entry.text}</p>
+          <div style={{display:"flex",gap:6,flexShrink:0}}>
+            {!entry.analysis&&<Btn onClick={function(){analyze(entry)}} disabled={!!loading[entry.id]} s={{background:T.priL,color:T.pri,borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:600}}>
+              {loading[entry.id]?"⏳":"✨ KI"}
+            </Btn>}
+            <Btn onClick={function(){dispatch({type:"NUTR_DEL",id:entry.id})}} s={{background:T.errL,color:T.err,borderRadius:8,padding:"6px 8px",fontSize:13}}>✕</Btn>
+          </div>
+        </div>
+        {entry.analysis&&<div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+            <Bd bg="#fee2e2" fg="#991b1b">🥩 {Math.round(entry.analysis.protein_g||0)}g</Bd>
+            <Bd bg="#fed7aa" fg="#92400e">🌾 {Math.round(entry.analysis.carbs_g||0)}g</Bd>
+            <Bd bg="#fef9c3" fg="#854d0e">🫒 {Math.round(entry.analysis.fat_g||0)}g</Bd>
+            <Bd bg={T.ca} fg={T.tx2}>{Math.round(entry.analysis.calories||0)} kcal</Bd>
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <Bd bg={gradeColor(entry.analysis.grade||3)} fg="#fff">Note {entry.analysis.grade} · {gradeLabel(entry.analysis.grade||3)}</Bd>
+          </div>
+          {entry.analysis.note&&<p style={{fontSize:12,color:T.tx2,marginTop:8,lineHeight:1.5,fontStyle:"italic"}}>"{entry.analysis.note}"</p>}
+        </div>}
+      </Cd>;
+    })}
+  </div>;
+}
+
 /* MAIN */
-var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"stats",l:"Rating",i:"📊"},{id:"prog",l:"Progress",i:"📈"},{id:"achs",l:"Awards",i:"🏆"},{id:"learn",l:"Learn",i:"📖"}];
+var TABS=[{id:"home",l:"Today",i:"☀️"},{id:"stats",l:"Rating",i:"📊"},{id:"prog",l:"Progress",i:"📈"},{id:"achs",l:"Awards",i:"🏆"},{id:"learn",l:"Learn",i:"📖"},{id:"nutr",l:"Essen",i:"🍽️"}];
 
 function App(){
   var _s=useReducer(red,mkS(null)),state=_s[0],dispatch=_s[1];
@@ -571,6 +732,7 @@ function App(){
     if(tab==="prog")return <Prog/>;
     if(tab==="achs")return <Achs/>;
     if(tab==="learn")return <Lrn nav={nav}/>;
+    if(tab==="nutr")return <NutrTab/>;
     return <Home nav={nav}/>;
   }
 
