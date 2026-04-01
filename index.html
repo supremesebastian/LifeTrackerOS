@@ -701,6 +701,7 @@ function App(){
   var _s=useReducer(red,mkS(null)),state=_s[0],dispatch=_s[1];
   var _tab=useState("home"),tab=_tab[0],setTab=_tab[1];
   var _stack=useState([]),stack=_stack[0],setStack=_stack[1];
+  var _w=useState(window.innerWidth>=768),wide=_w[0],setWide=_w[1];
   var loaded=useRef(false);
 
   useEffect(function(){
@@ -713,6 +714,12 @@ function App(){
     var t=setTimeout(function(){try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}},300);
     return function(){clearTimeout(t)};
   },[state]);
+
+  useEffect(function(){
+    function onR(){setWide(window.innerWidth>=768)}
+    window.addEventListener("resize",onR);
+    return function(){window.removeEventListener("resize",onR)};
+  },[]);
 
   var nav=useCallback(function(scr,params){setStack(function(p){return p.concat([{scr:scr,params:params}])})},[]);
   var back=useCallback(function(){setStack(function(p){return p.slice(0,-1)})},[]);
@@ -734,6 +741,26 @@ function App(){
     if(tab==="learn")return <Lrn nav={nav}/>;
     if(tab==="nutr")return <NutrTab/>;
     return <Home nav={nav}/>;
+  }
+
+  if(wide){
+    return <Ctx.Provider value={{state:state,dispatch:dispatch}}>
+      <div style={{display:"flex",height:"100vh",background:T.bg,color:T.tx,fontFamily:ff,overflow:"hidden"}}>
+        <div style={{width:230,background:T.card,borderRight:"1px solid "+T.brd,display:"flex",flexDirection:"column",padding:"28px 12px 20px",flexShrink:0}}>
+          <div style={{padding:"0 10px 28px"}}>
+            <p style={{fontFamily:fd,fontSize:24,fontWeight:700,color:T.tx}}>⚡ LifeOS</p>
+          </div>
+          {TABS.map(function(t){return <Btn key={t.id} onClick={function(){setTab(t.id);setStack([])}} s={{width:"100%",justifyContent:"flex-start",gap:12,padding:"11px 14px",borderRadius:12,background:tab===t.id?T.priL:"none",color:tab===t.id?T.pri:T.tx,fontSize:15,fontWeight:tab===t.id?600:400,marginBottom:2}}><span style={{fontSize:20}}>{t.i}</span><span>{t.l}</span></Btn>})}
+          <div style={{flex:1}}/>
+          <Btn onClick={function(){nav("settings")}} s={{width:"100%",justifyContent:"flex-start",gap:12,padding:"11px 14px",borderRadius:12,background:"none",color:T.tx2,fontSize:15,fontWeight:400}}><span style={{fontSize:20}}>⚙️</span><span>Einstellungen</span></Btn>
+        </div>
+        <div style={{flex:1,overflowY:"auto",height:"100vh",background:T.bg}}>
+          <div style={{maxWidth:780,margin:"0 auto"}}>
+            {render()}
+          </div>
+        </div>
+      </div>
+    </Ctx.Provider>;
   }
 
   return <Ctx.Provider value={{state:state,dispatch:dispatch}}>
