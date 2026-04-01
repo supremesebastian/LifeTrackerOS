@@ -740,8 +740,8 @@ function App(){
     <div style={{fontFamily:ff,background:T.bg,color:T.tx,minHeight:"100vh",maxWidth:480,margin:"0 auto",position:"relative",paddingBottom:80}}>
       {render()}
       {!cur&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid "+T.brd,display:"flex",justifyContent:"space-around",padding:"6px 0 env(safe-area-inset-bottom,8px)",zIndex:100}}>
-        {TABS.map(function(t){return <Btn key={t.id} onClick={function(){setTab(t.id);setStack([])}} s={{flexDirection:"column",gap:2,padding:"6px 12px",background:"none",fontSize:10,color:tab===t.id?T.pri:T.tx3,fontWeight:tab===t.id?600:400}}><span style={{fontSize:22,lineHeight:"1"}}>{t.i}</span><span>{t.l}</span></Btn>})}
-        <Btn onClick={function(){nav("settings")}} s={{flexDirection:"column",gap:2,padding:"6px 12px",background:"none",fontSize:10,color:T.tx3}}><span style={{fontSize:22,lineHeight:"1"}}>⚙️</span><span>More</span></Btn>
+        {TABS.map(function(t){return <Btn key={t.id} onClick={function(){setTab(t.id);setStack([])}} s={{flexDirection:"column",gap:1,padding:"6px 5px",background:"none",fontSize:9,color:tab===t.id?T.pri:T.tx3,fontWeight:tab===t.id?600:400,minWidth:0,flex:1}}><span style={{fontSize:20,lineHeight:"1"}}>{t.i}</span><span style={{whiteSpace:"nowrap"}}>{t.l}</span></Btn>})}
+        <Btn onClick={function(){nav("settings")}} s={{flexDirection:"column",gap:1,padding:"6px 5px",background:"none",fontSize:9,color:T.tx3,minWidth:0,flex:1}}><span style={{fontSize:20,lineHeight:"1"}}>⚙️</span><span style={{whiteSpace:"nowrap"}}>More</span></Btn>
       </div>}
     </div>
   </Ctx.Provider>;
