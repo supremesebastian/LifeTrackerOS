@@ -74,7 +74,9 @@ var useRef = React.useRef;
 var STORE = "lifeos-v9";
 var ff = "'DM Sans',system-ui,sans-serif";
 var fd = "'Outfit',system-ui,sans-serif";
-var T = {bg:"#FAFAF9",card:"#FFF",ca:"#F5F5F4",brd:"#E7E5E4",tx:"#1C1917",tx2:"#78716C",tx3:"#A8A29E",pri:"#6366F1",priL:"#EEF2FF",priD:"#4338CA",acc:"#F59E0B",ok:"#22C55E",okL:"#DCFCE7",err:"#EF4444",errL:"#FEE2E2",xpL:"#FEF9C3"};
+var TL={bg:"#FAFAF9",card:"#FFF",ca:"#F5F5F4",brd:"#E7E5E4",tx:"#1C1917",tx2:"#78716C",tx3:"#A8A29E",pri:"#6366F1",priL:"#EEF2FF",priD:"#4338CA",acc:"#F59E0B",ok:"#22C55E",okL:"#DCFCE7",err:"#EF4444",errL:"#FEE2E2",xpL:"#FEF9C3"};
+var TD={bg:"#0C0A09",card:"#1C1917",ca:"#292524",brd:"#3C3836",tx:"#FAFAF9",tx2:"#A8A29E",tx3:"#57534E",pri:"#818CF8",priL:"#1E1B4B",priD:"#A5B4FC",acc:"#FCD34D",ok:"#4ADE80",okL:"#14532D",err:"#F87171",errL:"#450A0A",xpL:"#422006"};
+var T=Object.assign({},TL);
 
 function getDay(){return new Date().toISOString().split("T")[0]}
 function mkId(){return "i"+Math.random().toString(36).slice(2,9)+Date.now().toString(36)}
@@ -544,12 +546,13 @@ function LDet(props){
 
 /* SETTINGS */
 function Sett(props){
-  var c=useC();var s=c.state,d=c.dispatch,user=c.user;
+  var c=useC();var s=c.state,d=c.dispatch,user=c.user,toggleDark=c.toggleDark,darkMode=c.darkMode;
   var _sr=useState(false),sr=_sr[0],setSr=_sr[1];
   return <div><div style={{padding:"16px 20px 8px"}}><h1 style={{fontFamily:fd,fontSize:24,fontWeight:700,margin:0}}>Settings</h1></div><div style={{padding:"0 20px 20px"}}>
     <Cd s={{textAlign:"center"}}><div style={{width:64,height:64,borderRadius:20,background:T.priL,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",fontSize:32}}>🚀</div><p style={hdS(18)}>Level {lvI(s.xp).level}</p><p style={Object.assign({},smS,{margin:"4px 0 0"})}>{s.xp} XP · {s.totalDone} tasks</p></Cd>
     <p style={lblS}>Tasks</p><Cd><Btn onClick={function(){props.nav("ed",{})}} s={{width:"100%",background:"none",padding:"8px 0",fontSize:15,color:T.tx,justifyContent:"flex-start",gap:12}}><span style={{fontSize:20}}>➕</span><span style={{flex:1,textAlign:"left",fontWeight:500}}>Create New Task</span><span style={{color:T.tx3}}>›</span></Btn><div style={{borderTop:"1px solid "+T.brd,marginTop:8,paddingTop:8}}><p style={Object.assign({},smS,{margin:0})}>Active: {s.tasks.filter(function(t){return !t.arch}).length} · Archived: {s.tasks.filter(function(t){return t.arch}).length}</p></div></Cd>
     {user&&<div><p style={lblS}>Konto</p><Cd><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>{user.photoURL&&<img src={user.photoURL} style={{width:40,height:40,borderRadius:20}} alt=""/>}<div><p style={{fontWeight:600,fontSize:14,margin:0}}>{user.displayName}</p><p style={{fontSize:12,color:T.tx2,margin:"2px 0 0"}}>{user.email}</p></div></div><p style={Object.assign({},smS,{margin:"0 0 12px",color:T.ok})}>✓ Daten werden mit Firebase synchronisiert</p><Btn onClick={function(){fbAuth.signOut()}} s={Object.assign({},bscS,{width:"100%"})}>Abmelden</Btn></Cd></div>}
+    <p style={lblS}>Darstellung</p><Cd><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><p style={{fontWeight:500,fontSize:15,margin:0}}>{darkMode?"🌙 Dark Mode":"☀️ Light Mode"}</p><p style={Object.assign({},smS,{margin:"2px 0 0"})}>Folgt automatisch dem System</p></div><Btn onClick={toggleDark} s={{background:darkMode?T.pri:T.ca,color:darkMode?"#fff":T.tx,borderRadius:20,padding:"8px 16px",fontSize:13,fontWeight:600,border:"1px solid "+T.brd}}>{darkMode?"An":"Aus"}</Btn></div></Cd>
     <p style={lblS}>Data</p><Cd><p style={Object.assign({},smS,{margin:"0 0 12px"})}>Stored locally in your browser.</p><Btn onClick={function(){setSr(true)}} s={Object.assign({},bdnS,bsmS,{width:"100%"})}>Reset All Data</Btn></Cd>
     <Sheet open={sr} onClose={function(){setSr(false)}} title="Reset All Data?"><p style={{fontSize:14,color:T.tx2,marginBottom:20,lineHeight:1.5}}>Deletes everything permanently.</p><div style={{display:"flex",gap:10}}><Btn onClick={function(){setSr(false)}} s={Object.assign({},bscS,{flex:1})}>Cancel</Btn><Btn onClick={function(){d({type:"RST"});setSr(false)}} s={Object.assign({},bdnS,{flex:1})}>Reset</Btn></div></Sheet>
     <div style={{textAlign:"center",padding:"32px 0"}}><p style={smS}>LifeOS v1.0</p></div>
@@ -751,8 +754,15 @@ function App(){
   var _w=useState(window.innerWidth>=768),wide=_w[0],setWide=_w[1];
   var _user=useState(null),user=_user[0],setUser=_user[1];
   var _authL=useState(true),authLoading=_authL[0],setAuthLoading=_authL[1];
+  var _dm=useState(function(){var s=localStorage.getItem("lifeos-dm");return s!==null?s==="1":window.matchMedia("(prefers-color-scheme: dark)").matches;}),darkMode=_dm[0],setDarkMode=_dm[1];
   var loaded=useRef(false);
   var syncing=useRef(false);
+  Object.assign(T,darkMode?TD:TL);
+
+  useEffect(function(){
+    document.body.style.background=darkMode?TD.bg:TL.bg;
+    localStorage.setItem("lifeos-dm",darkMode?"1":"0");
+  },[darkMode]);
 
   useEffect(function(){
     fbAuth.getRedirectResult().catch(function(){});
@@ -808,7 +818,7 @@ function App(){
 
   if(authLoading)return <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg}}><div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>⚡</div><p style={{color:T.tx2,fontFamily:ff}}>Wird geladen…</p></div></div>;
   if(!user)return <LoginScreen/>;
-  if(!state.ob)return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}><div style={{fontFamily:ff,background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}><Onboard/></div></Ctx.Provider>;
+  if(!state.ob)return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user,darkMode:darkMode,toggleDark:function(){setDarkMode(function(v){return !v})}}}><div style={{fontFamily:ff,background:T.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto"}}><Onboard/></div></Ctx.Provider>;
 
   function render(){
     if(cur){
@@ -827,7 +837,7 @@ function App(){
   }
 
   if(wide){
-    return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}>
+    return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user,darkMode:darkMode,toggleDark:function(){setDarkMode(function(v){return !v})}}}>
       <div style={{display:"flex",height:"100vh",background:T.bg,color:T.tx,fontFamily:ff,overflow:"hidden"}}>
         <div style={{width:230,background:T.card,borderRight:"1px solid "+T.brd,display:"flex",flexDirection:"column",padding:"28px 12px 20px",flexShrink:0}}>
           <div style={{padding:"0 10px 28px"}}>
@@ -835,6 +845,7 @@ function App(){
           </div>
           {TABS.map(function(t){return <Btn key={t.id} onClick={function(){setTab(t.id);setStack([])}} s={{width:"100%",justifyContent:"flex-start",gap:12,padding:"11px 14px",borderRadius:12,background:tab===t.id?T.priL:"none",color:tab===t.id?T.pri:T.tx,fontSize:15,fontWeight:tab===t.id?600:400,marginBottom:2}}><span style={{fontSize:20}}>{t.i}</span><span>{t.l}</span></Btn>})}
           <div style={{flex:1}}/>
+          <Btn onClick={function(){setDarkMode(function(v){return !v})}} s={{width:"100%",justifyContent:"flex-start",gap:12,padding:"11px 14px",borderRadius:12,background:"none",color:T.tx2,fontSize:15,fontWeight:400,marginBottom:2}}><span style={{fontSize:20}}>{darkMode?"☀️":"🌙"}</span><span>{darkMode?"Light Mode":"Dark Mode"}</span></Btn>
           <Btn onClick={function(){nav("settings")}} s={{width:"100%",justifyContent:"flex-start",gap:12,padding:"11px 14px",borderRadius:12,background:"none",color:T.tx2,fontSize:15,fontWeight:400}}><span style={{fontSize:20}}>⚙️</span><span>Einstellungen</span></Btn>
         </div>
         <div style={{flex:1,overflowY:"auto",height:"100vh",background:T.bg}}>
@@ -846,7 +857,7 @@ function App(){
     </Ctx.Provider>;
   }
 
-  return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user}}>
+  return <Ctx.Provider value={{state:state,dispatch:dispatch,user:user,darkMode:darkMode,toggleDark:function(){setDarkMode(function(v){return !v})}}}>
     <div style={{fontFamily:ff,background:T.bg,color:T.tx,minHeight:"100vh",maxWidth:480,margin:"0 auto",position:"relative",paddingBottom:80}}>
       {render()}
       {!cur&&<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,.95)",backdropFilter:"blur(20px)",borderTop:"1px solid "+T.brd,display:"flex",justifyContent:"space-around",padding:"6px 0 env(safe-area-inset-bottom,8px)",zIndex:100}}>
