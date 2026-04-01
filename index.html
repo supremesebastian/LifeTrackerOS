@@ -128,7 +128,7 @@ function mkS(defs){
     cats:SC.map(function(c){return{id:c.id,name:c.name,icon:c.icon,color:c.color}}),
     achs:SAch.map(function(a){return{id:a.id,title:a.title,desc:a.desc,icon:a.icon,ct:a.ct,cv:a.cv,xp:a.xp,unlocked:false,prog:0}}),
     learns:SLrn.map(function(l){return{id:l.id,title:l.title,author:l.author,sum:l.sum,kp:l.kp,acts:l.acts,cat:l.cat,read:l.read}}),
-    nutrition:{date:d,entries:[],apiKey:""}
+    nutrition:{date:d,entries:[],apiKey:"",kcalGoal:2000}
   };
 }
 
@@ -184,7 +184,8 @@ function red(state,action){
     case "NUTR_ADD":{var ne={id:mkId(),text:action.text,ts:Date.now(),analysis:null};var nn=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nn,{entries:nn.entries.concat([ne])})})}
     case "NUTR_DEL":{var nd=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nd,{entries:nd.entries.filter(function(e){return e.id!==action.id})})})}
     case "NUTR_ANALYSIS":{var na=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},na,{entries:na.entries.map(function(e){return e.id===action.id?Object.assign({},e,{analysis:action.data}):e})})})}
-    case "NUTR_KEY":{var nk=s.nutrition||{entries:[],apiKey:""};return Object.assign({},s,{nutrition:Object.assign({},nk,{apiKey:action.key})})}
+    case "NUTR_KEY":{var nk=s.nutrition||{entries:[],apiKey:"",kcalGoal:2000};return Object.assign({},s,{nutrition:Object.assign({},nk,{apiKey:action.key})})}
+    case "NUTR_GOAL":{var ng=s.nutrition||{entries:[],apiKey:"",kcalGoal:2000};return Object.assign({},s,{nutrition:Object.assign({},ng,{kcalGoal:action.goal})})}
     default:return s;
   }
 }
@@ -562,12 +563,15 @@ function Sett(props){
 /* NUTRITION */
 function NutrTab(){
   var _c=useC(),state=_c.state,dispatch=_c.dispatch;
-  var nutr=state.nutrition||{entries:[],apiKey:""};
+  var nutr=state.nutrition||{entries:[],apiKey:"",kcalGoal:2000};
+  var kcalGoal=nutr.kcalGoal||2000;
   var _t=useState(""),text=_t[0],setText=_t[1];
   var _l=useState({}),loading=_l[0],setLoading=_l[1];
   var _ki=useState(nutr.apiKey||""),keyInput=_ki[0],setKeyInput=_ki[1];
   var _sk=useState(!nutr.apiKey),showKey=_sk[0],setShowKey=_sk[1];
   var _toast=useState(""),toast=_toast[0],setToast=_toast[1];
+  var _eg=useState(false),editGoal=_eg[0],setEditGoal=_eg[1];
+  var _gi=useState(String(kcalGoal)),goalInput=_gi[0],setGoalInput=_gi[1];
 
   function showT(m){setToast(m);setTimeout(function(){setToast("")},2500)}
 
@@ -678,6 +682,22 @@ function NutrTab(){
           <p style={{fontSize:12,color:T.tx2,marginTop:2}}>kcal</p>
         </div>
       </div>
+      <div style={{marginTop:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <p style={{fontSize:13,fontWeight:600,color:T.tx}}>Tagesziel Kalorien</p>
+          {editGoal
+            ?<div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input type="number" value={goalInput} onChange={function(e){setGoalInput(e.target.value)}} style={{width:80,padding:"4px 8px",borderRadius:8,border:"1.5px solid "+T.pri,fontSize:13,fontFamily:ff,background:T.card,color:T.tx,textAlign:"center"}}/>
+              <Btn onClick={function(){var g=parseInt(goalInput);if(g>0){dispatch({type:"NUTR_GOAL",goal:g});}setEditGoal(false)}} s={{background:T.pri,color:"#fff",borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600}}>OK</Btn>
+            </div>
+            :<Btn onClick={function(){setGoalInput(String(kcalGoal));setEditGoal(true)}} s={{background:"rgba(255,255,255,.5)",color:T.pri,borderRadius:8,padding:"4px 10px",fontSize:12,fontWeight:600}}>{kcalGoal} kcal ✏️</Btn>
+          }
+        </div>
+        <div style={{height:10,background:"rgba(0,0,0,.1)",borderRadius:5,overflow:"hidden"}}>
+          <div style={{height:"100%",borderRadius:5,width:Math.min(100,(totals.calories/kcalGoal)*100)+"%",background:totals.calories>kcalGoal?T.err:T.ok,transition:"width 0.4s"}}/>
+        </div>
+        <p style={{fontSize:12,color:T.tx2,marginTop:4,textAlign:"right"}}>{Math.round(totals.calories)} / {kcalGoal} kcal · {Math.max(0,Math.round(kcalGoal-totals.calories))} verbleibend</p>
+      </div>
     </Cd>}
 
     {entries.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.tx3}}>
@@ -777,17 +797,24 @@ function App(){
     if(authLoading)return;
     loaded.current=false;
     if(user){
-      db.collection("users").doc(user.uid).get().then(function(doc){
-        if(doc.exists&&doc.data().state){
+      var unsubSnap=db.collection("users").doc(user.uid).onSnapshot(function(doc){
+        if(!loaded.current){
+          // Initial load
+          if(doc.exists&&doc.data().state){
+            dispatch({type:"LD",data:doc.data().state});
+          } else {
+            try{var raw=localStorage.getItem(STORE);if(raw)dispatch({type:"LD",data:JSON.parse(raw)})}catch(e){}
+          }
+          loaded.current=true;
+        } else if(!syncing.current&&doc.exists&&doc.data().state){
+          // Real-time update from another device
           dispatch({type:"LD",data:doc.data().state});
-        } else {
-          try{var raw=localStorage.getItem(STORE);if(raw)dispatch({type:"LD",data:JSON.parse(raw)})}catch(e){}
         }
-        loaded.current=true;
-      }).catch(function(){
+      },function(){
         try{var raw=localStorage.getItem(STORE);if(raw)dispatch({type:"LD",data:JSON.parse(raw)})}catch(e){}
         loaded.current=true;
       });
+      return unsubSnap;
     } else {
       try{var raw=localStorage.getItem(STORE);if(raw){dispatch({type:"LD",data:JSON.parse(raw)})}}catch(e){}
       loaded.current=true;
